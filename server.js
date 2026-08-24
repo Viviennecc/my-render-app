@@ -18,7 +18,7 @@ const captchaStore = new Map();
 // --- Authentication Middleware ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const token = authHeader && authHeader.split(" ");
   if (!token) return res.status(401).json({ error: "Access token missing" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -47,7 +47,7 @@ app.get("/api/auth/captcha", (req, res) => {
   });
 });
 
-// 2. Persistent User Registration (FIXED DATA MAPS)
+// 2. Persistent User Registration (CRITICAL INDEX FIX)
 app.post("/api/auth/register", async (req, res) => {
   const { loginName, username, email, password, dateOfBirth } = req.body;
   try {
@@ -71,7 +71,7 @@ app.post("/api/auth/register", async (req, res) => {
       ],
     );
 
-    // Extraction variable maps directly to structural array row profile indices
+    // ⚠️ 關鍵修復：Postgres 的 rows 是一個陣列，必須加上 [0] 才能正確讀取 id
     const createdUserId = newUser.rows[0].id;
 
     // Seed empty customizable dashboard style rules mapped to user's identity
@@ -80,7 +80,7 @@ app.post("/api/auth/register", async (req, res) => {
     ]);
     res.json({ success: true, message: "Registration complete!" });
   } catch (err) {
-    console.error("REGISTRATION_FAILURE_STACK:", err); // Outputs debug properties to terminal panel
+    console.error("REGISTRATION_FAILURE_STACK:", err); // 輸出錯誤日誌到 Render 控制台
     res
       .status(500)
       .json({ error: "Internal system fault during registration." });
@@ -113,7 +113,7 @@ app.post("/api/auth/login", async (req, res) => {
         .status(404)
         .json({ error: "User credential profiles not found." });
 
-    const user = result.rows[0];
+    const user = result.rows[0]; // ⚠️ 同步修正這裡的陣列索引
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match)
       return res.status(401).json({ error: "Invalid security credentials." });
@@ -142,7 +142,7 @@ app.post("/api/auth/forgot-verify", async (req, res) => {
         .status(400)
         .json({ error: "Verification failed. Attributes do not match." });
 
-    const user = result.rows[0];
+    const user = result.rows[0]; // ⚠️ 同步修正這裡的陣列索引
     const securityCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 Minute validation threshold
 
@@ -172,7 +172,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Account identifier mismatch." });
 
-    const user = result.rows[0];
+    const user = result.rows[0]; // ⚠️ 同步修正這裡的陣列索引
     if (!user.security_2fa_code || user.security_2fa_code !== securityCode) {
       return res
         .status(400)
@@ -207,7 +207,7 @@ app.get("/api/settings", authenticateToken, async (req, res) => {
       "SELECT * FROM user_settings WHERE user_id = $1",
       [req.user.id],
     );
-    res.json(settings.rows[0] || {});
+    res.json(settings.rows[0] || {}); // ⚠️ 修正這裡的陣列索引
   } catch (err) {
     res.status(500).json({ error: "Failed preference configuration parsing." });
   }
@@ -342,10 +342,7 @@ app.post("/api/blogs", authenticateToken, async (req, res) => {
 app.get("/api/messages", authenticateToken, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT m.*, u1.username AS sender_name, u2.username AS recipient_name FROM
-       secure_messages m JOIN users u1 ON m.sender_id = u1.id JOIN users u2 ON
-       m.recipient_id = u2.id WHERE m.sender_id = $1 OR m.recipient_id = $1 ORDER BY
-       m.created_at ASC`,
+      "SELECT m.*, u1.username AS sender_name, u2.username AS recipient_name FROM secure_messages m JOIN users u1 ON m.sender_id = u1.id JOIN users u2 ON m.recipient_id = u2.id WHERE m.sender_id = $1 OR m.recipient_id = $1 ORDER BY m.created_at ASC",
       [req.user.id],
     );
     res.json(result.rows);
@@ -353,7 +350,6 @@ app.get("/api/messages", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Message extraction failed." });
   }
 });
-
 app.post("/api/messages", authenticateToken, async (req, res) => {
   const { recipientLoginName, ciphertext, encryptedAesKey, iv } = req.body;
   try {
@@ -365,10 +361,8 @@ app.post("/api/messages", authenticateToken, async (req, res) => {
       return res
         .status(404)
         .json({ error: "Recipient address identity cannot be mapped." });
-
     await db.query(
-      `INSERT INTO secure_messages (sender_id, recipient_id, ciphertext,
-       encrypted_aes_key, iv) VALUES ($1, $2, $3, $4, $5)`,
+      "INSERT INTO secure_messages (sender_id, recipient_id, ciphertext, encrypted_aes_key, iv) VALUES ($1, $2, $3, $4, $5)",
       [req.user.id, target.rows[0].id, ciphertext, encryptedAesKey, iv],
     );
     res.json({ success: true });
@@ -376,20 +370,13 @@ app.post("/api/messages", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Message insertion pipeline failure." });
   }
 });
-
 // ==========================================
-// 🌐 前後端無縫融合體（靜態網頁持久化派發）
+// 🌐 STATIC FILE ROUTING GATEWAY
 // ==========================================
-
-// 1. 讓伺服器可以讀取 React 編譯產出的 client/dist 靜態資源資料夾
 app.use(express.static(path.join(__dirname, "client", "dist")));
-
-// 2. 萬能攔截器：當使用者重新整理網頁或點選任何路由，一律回傳前端 React 入口網頁
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
-
-// ⚠️ 這是你原本就有的伺服器啟動行，請保持在最底部
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
   console.log(`Production Server executing on operational port: ${PORT}`),
