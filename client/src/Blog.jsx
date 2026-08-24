@@ -1,389 +1,208 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import localforage from "localforage";
-import { encryptData, decryptData } from "./utils/encryption";
-import BlogAppearance from "./BlogAppearance";
-import BlogCompose from "./BlogCompose";
-import "./Blog.css";
+import { api } from "./api"; // 引入雲端後端大網關 API
+import "./Blog.css"; // 保留您原本的網誌樣式表
 
-localforage.config({ name: "JournalApp", storeName: "posts_storage" });
-
-const Blog = ({ userName }) => {
+const Blog = () => {
   const navigate = useNavigate();
-  const [displayUserName, setDisplayUserName] = useState(userName || "Guest");
-  const [textColor, setTextColor] = useState("#1d1d1f");
-  const [textSize, setTextSize] = useState(18);
-  const [background, setBackground] = useState({
-    type: "color",
-    value: "#f0f2f5",
-  });
 
-  const [showAppearance, setShowAppearance] = useState(false);
-  const [showCompose, setShowCompose] = useState(false);
-  const [deleteMode, setDeleteMode] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [feedFilter, setFeedFilter] = useState("private");
-  const [posts, setPosts] = useState([]);
-  const [editingPostId, setEditingPostId] = useState(null);
+  // --- 狀態宣告 ---
+  const [blogs, setBlogs] = useState([]);
+  const [newBlog, setNewBlog] = useState({ title: "", content: "" });
+  const [isLoading, setIsLoading] = useState(true);
+  const [displayUserName, setDisplayUserName] = useState("Guest");
 
-  const [newPost, setNewPost] = useState({
-    title: "",
-    content: "",
-    postColor: "#1d1d1f",
-    postSize: 18,
-    postImage: "",
-    isShared: false,
-    sharedWith: "",
-  });
-
-  // Temp states for Modal
-  const [tempTextColor, setTempTextColor] = useState("#1d1d1f");
-  const [tempBgColor, setTempBgColor] = useState("#f0f2f5");
-  const [tempTextSize, setTempTextSize] = useState(18);
-  const [tempImageBase64, setTempImageBase64] = useState("");
-
-  const loadAndDecryptPosts = useCallback(
-    async (currentAuthor) => {
-      try {
-        const encryptedPosts =
-          (await localforage.getItem("encrypted_posts")) || [];
-        const decryptedPosts = await Promise.all(
-          encryptedPosts.map(async (p) => {
-            try {
-              const author = await decryptData(p.author);
-              const targetUser = p.sharedWith
-                ? await decryptData(p.sharedWith)
-                : "";
-              const isMine = author === currentAuthor;
-              const isPublic = p.isShared === true;
-              const isSharedToMe =
-                targetUser.toLowerCase() === currentAuthor.toLowerCase();
-
-              if (feedFilter === "private" && !isMine && !isSharedToMe)
-                return null;
-              if (feedFilter === "shared" && !isPublic) return null;
-
-              return {
-                id: p.id,
-                title: await decryptData(p.title),
-                content: await decryptData(p.content),
-                author,
-                postColor: p.postColor
-                  ? await decryptData(p.postColor)
-                  : "#1d1d1f",
-                postSize: p.postSize
-                  ? parseInt(await decryptData(p.postSize))
-                  : 18,
-                postImage: p.postImage ? await decryptData(p.postImage) : "",
-                date: p.date,
-                isMine,
-                isPublic,
-                isSharedToMe,
-                sharedWith: targetUser,
-              };
-            } catch (err) {
-              return null;
-            }
-          }),
-        );
-        setPosts(decryptedPosts.filter((p) => p !== null).reverse());
-      } catch (err) {
-        console.error(err);
-      }
-    },
-    [feedFilter],
-  );
-
+  // --- 頁面初始化：從雲端拉取歷史網誌與用戶狀態 ---
   useEffect(() => {
-    const initBlog = async () => {
-      setLoading(true);
-      let currentName = userName || "Guest";
+    const initBlogSystem = async () => {
+      setIsLoading(true);
       try {
-        const savedNameEnc = await localforage.getItem("encrypted_user_name");
-        if (savedNameEnc)
-          currentName = (await decryptData(savedNameEnc)) || currentName;
-        setDisplayUserName(currentName);
+        // 設定顯示的登入者名稱
+        const cachedUser = localStorage.getItem("currentUser");
+        if (cachedUser) setDisplayUserName(cachedUser);
 
-        const settingsKey = `blog_settings_${userName}`;
-        const savedSettings = (await localforage.getItem(settingsKey)) || {};
-        if (savedSettings.textColor) setTextColor(savedSettings.textColor);
-        if (savedSettings.textSize) setTextSize(savedSettings.textSize);
-        if (savedSettings.background) setBackground(savedSettings.background);
-
-        await loadAndDecryptPosts(currentName);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    initBlog();
-  }, [userName, loadAndDecryptPosts]);
-
-  // HANDLERS
-  const closeCompose = () => {
-    setShowCompose(false);
-    setEditingPostId(null);
-    setNewPost({
-      title: "",
-      content: "",
-      postColor: "#1d1d1f",
-      postSize: 18,
-      postImage: "",
-      isShared: false,
-      sharedWith: "",
-    });
-  };
-
-  // Inside your Blog component
-  const [allUsers, setAllUsers] = useState([]);
-
-  useEffect(() => {
-    const fetchUsers = () => {
-      try {
-        const storedUsers = localStorage.getItem("users");
-        if (storedUsers) {
-          const parsedUsers = JSON.parse(storedUsers);
-          // Ensure we only get the usernames
-          setAllUsers(parsedUsers);
+        // 自 Render 後端永久 Postgres 資料庫讀取所有網誌文章
+        const cloudBlogs = await api.getBlogs();
+        if (cloudBlogs && !cloudBlogs.error) {
+          setBlogs(cloudBlogs);
         }
       } catch (err) {
-        console.error("Failed to load user list:", err);
+        console.error("無法載入雲端網誌:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchUsers();
+    initBlogSystem();
   }, []);
 
-  const handleEditInit = (post) => {
-    setEditingPostId(post.id);
-    setNewPost({ ...post });
-    setShowCompose(true);
-  };
-
-  const handlePublish = async (e) => {
+  // --- 處理發表新網誌 (寫入 PostgreSQL 永久儲存) ---
+  const handlePublishBlog = async (e) => {
     e.preventDefault();
+    if (!newBlog.title.trim() || !newBlog.content.trim()) {
+      alert("標題與內容不能為空");
+      return;
+    }
+
     try {
-      const encryptedData = {
-        title: await encryptData(newPost.title),
-        content: await encryptData(newPost.content),
-        author: await encryptData(displayUserName),
-        postColor: await encryptData(newPost.postColor),
-        postSize: await encryptData(String(newPost.postSize)),
-        postImage: newPost.postImage
-          ? await encryptData(newPost.postImage)
-          : "",
-        isShared: newPost.isShared,
-        sharedWith: newPost.sharedWith
-          ? await encryptData(newPost.sharedWith)
-          : "",
-      };
+      const res = await api.addBlog({
+        title: newBlog.title,
+        content: newBlog.content,
+      });
 
-      const existingPosts =
-        (await localforage.getItem("encrypted_posts")) || [];
-      if (editingPostId) {
-        const updated = existingPosts.map((p) =>
-          p.id === editingPostId
-            ? { ...encryptedData, id: p.id, date: p.date }
-            : p,
-        );
-        await localforage.setItem("encrypted_posts", updated);
+      if (res.error) {
+        alert(res.error);
       } else {
-        const newEntry = {
-          ...encryptedData,
-          id: Date.now(),
-          date: new Date().toLocaleString(),
-        };
-        await localforage.setItem("encrypted_posts", [
-          ...existingPosts,
-          newEntry,
-        ]);
+        // 發表成功，清空輸入框
+        setNewBlog({ title: "", content: "" });
+        // 重新自雲端刷新文章清單
+        const updatedBlogs = await api.getBlogs();
+        if (updatedBlogs && !updatedBlogs.error) setBlogs(updatedBlogs);
       }
-      await loadAndDecryptPosts(displayUserName);
-      closeCompose();
     } catch (err) {
-      alert("Save failed.");
+      alert("發佈網誌失敗，請檢查網絡連線。");
     }
   };
 
-  const handleDeletePost = async (id) => {
-    if (window.confirm("Permanently delete?")) {
-      const existing = (await localforage.getItem("encrypted_posts")) || [];
-      const filtered = existing.filter((p) => p.id !== id);
-      await localforage.setItem("encrypted_posts", filtered);
-      setPosts(posts.filter((p) => p.id !== id));
-    }
-  };
-
-  const handleFinalSave = async () => {
-    let finalBg;
-    if (tempImageBase64) {
-      finalBg = { type: "image", value: tempImageBase64 };
-    } else {
-      finalBg = { type: "color", value: tempBgColor };
-    }
-
-    setBackground(finalBg);
-    setTextColor(tempTextColor);
-    setTextSize(tempTextSize);
-
-    await localforage.setItem(`blog_settings_${userName}`, {
-      textColor: tempTextColor,
-      textSize: tempTextSize,
-      background: finalBg,
-    });
-    setShowAppearance(false);
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setTempImageBase64(reader.result);
-    reader.readAsDataURL(file);
-  };
-
-  const containerStyle = {
-    color: textColor,
-    fontSize: `${textSize}px`,
-    backgroundColor:
-      background.type === "color" ? background.value : "transparent",
-    backgroundImage:
-      background.type === "image" ? `url(${background.value})` : "none",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundAttachment: "fixed",
-    minHeight: "100vh",
-    transition: "background 0.3s ease",
-  };
+  if (isLoading)
+    return (
+      <div style={{ padding: "20px", color: "#fff" }}>
+        Loading Cloud Blog System...
+      </div>
+    );
 
   return (
-    <div className="lib-blog-container" style={containerStyle}>
-      <aside className="lib-blog-sidebar">
-        <div className="lib-blog-logo"> Journal</div>
+    <div
+      className="blog-master-container"
+      style={{ padding: "20px", minHeight: "100vh" }}
+    >
+      {/* 頂部導航區域 (保留您原本的返回排版) */}
+      <header
+        className="blog-header-section"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "30px",
+        }}
+      >
+        <h2>📝 雲端永久網誌系統 (Blog)</h2>
         <button
-          className="lib-nav-item btn-new-post"
-          onClick={() => setShowCompose(true)}
+          className="blog-back-btn"
+          onClick={() => navigate("/dashboard")}
+          style={{ padding: "8px 16px", cursor: "pointer" }}
         >
-          ✍️ New Post
+          返回主控台
         </button>
-        <nav className="lib-main-nav">
-          <button
-            className={`lib-nav-item ${feedFilter === "private" ? "active" : ""}`}
-            onClick={() => setFeedFilter("private")}
-          >
-            🔒 Journal
-          </button>
-          <button
-            className={`lib-nav-item ${feedFilter === "shared" ? "active" : ""}`}
-            onClick={() => setFeedFilter("shared")}
-          >
-            🌍 Public
-          </button>
-          <button
-            className="lib-nav-item"
-            onClick={() => navigate("/dashboard")}
-          >
-            🏠 Home
-          </button>
-          <button
-            className="lib-nav-item"
-            onClick={() => setShowAppearance(true)}
-          >
-            🎨 Style
-          </button>
-          <button
-            className={`lib-nav-item ${deleteMode ? "active" : ""}`}
-            onClick={() => setDeleteMode(!deleteMode)}
-          >
-            🗑️ Delete
-          </button>
-        </nav>
-      </aside>
+      </header>
 
-      <main className="lib-blog-content">
-        <header className="lib-blog-header">
-          <h1>
-            {feedFilter === "private"
-              ? `${displayUserName}'s Journal`
-              : "Public Feed"}
-          </h1>
-        </header>
-        <section className="blog-posts-feed">
-          {posts.length === 0 ? (
-            <p style={{ opacity: 0.5 }}>No posts found.</p>
-          ) : (
-            posts.map((post) => (
+      {/* 發表新文章表單容器 - 完美契合原本 UI */}
+      <div
+        className="blog-write-card"
+        style={{
+          background: "rgba(255,255,255,0.95)",
+          padding: "20px",
+          borderRadius: "8px",
+          marginBottom: "30px",
+          color: "#000",
+        }}
+      >
+        <h3>發表新文章 (當前作者: {displayUserName})</h3>
+        <form
+          onSubmit={handlePublishBlog}
+          style={{ display: "grid", gap: "15px" }}
+        >
+          <input
+            type="text"
+            placeholder="請輸入文章標題..."
+            value={newBlog.title}
+            onChange={(e) => setNewBlog({ ...newBlog, title: e.target.value })}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "4px",
+              border: "1px solid #ccc",
+            }}
+            required
+          />
+          <textarea
+            placeholder="撰寫您的網誌內容..."
+            value={newBlog.content}
+            onChange={(e) =>
+              setNewBlog({ ...newBlog, content: e.target.value })
+            }
+            style={{
+              width: "100%",
+              height: "150px",
+              padding: "10px",
+              borderRadius: "4px",
+              border: "1px solid #ccc",
+              resize: "vertical",
+            }}
+            required
+          />
+          <button
+            type="submit"
+            style={{
+              background: "#1d1d1f",
+              color: "#fff",
+              padding: "10px",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            安全發佈文章至雲端
+          </button>
+        </form>
+      </div>
+
+      {/* 歷史文章列表展示 */}
+      <div className="blog-timeline-section">
+        <h3>✨ 歷史文章串流</h3>
+        {blogs.length === 0 ? (
+          <p style={{ color: "#eee", fontStyle: "italic" }}>
+            目前雲端資料庫中尚無任何文章，快來發表第一篇吧！
+          </p>
+        ) : (
+          blogs.map((post) => (
+            <div
+              key={post.id}
+              className="blog-post-card"
+              style={{
+                background: "rgba(255,255,255,0.9)",
+                padding: "20px",
+                borderRadius: "8px",
+                marginBottom: "15px",
+                color: "#000",
+              }}
+            >
+              <h4 style={{ margin: "0 0 10px 0", fontSize: "20px" }}>
+                {post.title}
+              </h4>
               <div
-                key={post.id}
-                className="blog-card"
                 style={{
-                  color: post.postColor,
-                  fontSize: `${post.postSize}px`,
+                  fontSize: "12px",
+                  color: "#666",
+                  marginBottom: "10px",
                 }}
               >
-                <div className="blog-card-header">
-                  <span className="blog-timestamp">{post.date}</span>
-                  {post.isMine && (
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <button
-                        className="btn-edit-post"
-                        onClick={() => handleEditInit(post)}
-                      >
-                        ✏️
-                      </button>
-                      {deleteMode && (
-                        <button
-                          className="btn-confirm-delete"
-                          onClick={() => handleDeletePost(post.id)}
-                        >
-                          🗑️
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {post.postImage && (
-                  <img
-                    src={post.postImage}
-                    alt="Post"
-                    className="blog-post-image"
-                  />
-                )}
-                <h2>{post.title}</h2>
-                <div className="blog-meta">By {post.author}</div>
-                <div className="blog-text-content">{post.content}</div>
+                <span>
+                  ✍️ 作者: <strong>{post.username || "未知用戶"}</strong>
+                </span>
+                <span style={{ marginLeft: "15px" }}>
+                  📅 時間: {new Date(post.created_at).toLocaleString()}
+                </span>
               </div>
-            ))
-          )}
-        </section>
-      </main>
-
-      <BlogCompose
-        show={showCompose}
-        onClose={closeCompose}
-        newPost={newPost}
-        setNewPost={setNewPost}
-        onPublish={handlePublish}
-        isEditing={!!editingPostId}
-      />
-
-      <BlogAppearance
-        show={showAppearance}
-        onClose={() => setShowAppearance(false)}
-        textColor={textColor}
-        textSize={textSize}
-        background={background}
-        tempTextColor={tempTextColor}
-        setTempTextColor={setTempTextColor}
-        tempTextSize={tempTextSize}
-        setTempTextSize={setTempTextSize}
-        tempBgColor={tempBgColor}
-        setTempBgColor={setTempBgColor}
-        tempImageBase64={tempImageBase64}
-        setTempImageBase64={setTempImageBase64}
-        handleFileChange={handleFileChange}
-        handleFinalSave={handleFinalSave}
-      />
+              <p
+                style={{ whiteSpace: "pre-wrap", lineHeight: "1.6", margin: 0 }}
+              >
+                {post.content}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 };
