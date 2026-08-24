@@ -3,6 +3,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const db = require("./db");
+const path = require("path"); //
 require("dotenv").config();
 
 const app = express();
@@ -373,6 +374,19 @@ app.post("/api/messages", authenticateToken, async (req, res) => {
   }
 });
 
+// ==========================================
+// 🌐 前後端無縫融合體（靜態網頁持久化派發）
+// ==========================================
+
+// 1. 讓伺服器可以讀取 React 編譯產出的 client/dist 靜態資源資料夾
+app.use(express.static(path.join(__dirname, "client", "dist")));
+
+// 2. 萬能攔截器：當使用者重新整理網頁或點選任何路由，一律回傳前端 React 入口網頁
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+});
+
+// ⚠️ 這是你原本就有的伺服器啟動行，請保持在最底部
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
   console.log(`Production Server executing on operational port: ${PORT}`),
