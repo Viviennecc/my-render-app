@@ -1,19 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// https://vite.dev
 export default defineConfig({
   plugins: [react()],
-  base: "./", // 👈 Added base path for GitHub Pages deployment
-  server: {
-    proxy: {
-      "/hko-api": {
-        // Point to the base directory of the API
-        target: "https://data.weather.gov.hk/weatherAPI/opendata",
-        changeOrigin: true,
-        secure: false,
-        // This maps /hko-api to the actual .php file path
-        rewrite: (path) => path.replace(/^\/hko-api/, "/weather.php"),
-      },
-    },
-  },
+  // ⚠️ 這是最核心、必備的關鍵修改，確保資產能在 Render 伺服器上正確讀取
+  base: "./",
 });
