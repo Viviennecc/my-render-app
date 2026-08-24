@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
+import "./SecureMessagingSystem.css"; // 保留原本的樣式表
 
 const SecureMessagingSystem = () => {
   const [messages, setMessages] = useState([]);
@@ -33,7 +34,7 @@ const SecureMessagingSystem = () => {
     });
 
     setText("");
-    loadMessages();
+    await loadMessages();
   };
 
   return (
