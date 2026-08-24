@@ -3,7 +3,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const db = require("./db");
-const path = require("path"); //
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
@@ -47,7 +47,7 @@ app.get("/api/auth/captcha", (req, res) => {
   });
 });
 
-// 2. Persistent User Registration
+// 2. Persistent User Registration (FIXED DATA MAPS)
 app.post("/api/auth/register", async (req, res) => {
   const { loginName, username, email, password, dateOfBirth } = req.body;
   try {
@@ -71,13 +71,16 @@ app.post("/api/auth/register", async (req, res) => {
       ],
     );
 
+    // Extraction variable maps directly to structural array row profile indices
+    const createdUserId = newUser.rows[0].id;
+
     // Seed empty customizable dashboard style rules mapped to user's identity
     await db.query("INSERT INTO user_settings (user_id) VALUES ($1)", [
-      newUser.rows[0].id,
+      createdUserId,
     ]);
     res.json({ success: true, message: "Registration complete!" });
   } catch (err) {
-    console.error(err);
+    console.error("REGISTRATION_FAILURE_STACK:", err); // Outputs debug properties to terminal panel
     res
       .status(500)
       .json({ error: "Internal system fault during registration." });
