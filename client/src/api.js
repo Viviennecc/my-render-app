@@ -11,14 +11,30 @@ const fetchWithAuth = async (url, options = {}) => {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE}${url}`, { ...options, headers });
+  try {
+    const response = await fetch(`${API_BASE}${url}`, { ...options, headers });
 
-  if (response.status === 401 || response.status === 403) {
-    localStorage.clear();
-    window.location.href = "/";
-    return { error: "Session expired. Relog required." };
+    // ⚠️ 修正互鎖：只有在明確收到 401 身份未驗證時，才強行清空 Session 登出
+    if (response.status === 401) {
+      localStorage.clear();
+      window.location.href = "/";
+      return { error: "Session expired. Relog required." };
+    }
+
+    // 如果是 403 或其他錯誤，不強行登出，改由組件內部進行降級處理
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      return {
+        error: errData.error || `HTTP error! status: ${response.status}`,
+        status: response.status,
+      };
+    }
+
+    return response;
+  } catch (netErr) {
+    console.error("Network request anomaly:", netErr);
+    return { error: "Network failure" };
   }
-  return response;
 };
 
 export const api = {
@@ -54,7 +70,8 @@ export const api = {
     }).then((res) => res.json()),
 
   // Dashboard Visual Customizations
-  getSettings: () => fetchWithAuth("/settings").then((res) => res.json()),
+  getSettings: () =>
+    fetchWithAuth("/settings").then((res) => (res.ok ? res.json() : res)),
 
   saveSettings: (body) =>
     fetchWithAuth("/settings", {
@@ -63,7 +80,8 @@ export const api = {
     }).then((res) => res.json()),
 
   // Library Asset Engine
-  getBooks: () => fetchWithAuth("/books").then((res) => res.json()),
+  getBooks: () =>
+    fetchWithAuth("/books").then((res) => (res.ok ? res.json() : res)),
 
   addBook: (body) =>
     fetchWithAuth("/books", {
@@ -82,7 +100,8 @@ export const api = {
     ),
 
   // Syndication Logs (Blog)
-  getBlogs: () => fetchWithAuth("/blogs").then((res) => res.json()),
+  getBlogs: () =>
+    fetchWithAuth("/blogs").then((res) => (res.ok ? res.json() : res)),
 
   addBlog: (body) =>
     fetchWithAuth("/blogs", {
@@ -91,7 +110,8 @@ export const api = {
     }).then((res) => res.json()),
 
   // Cryptographic Message Store
-  getMessages: () => fetchWithAuth("/messages").then((res) => res.json()),
+  getMessages: () =>
+    fetchWithAuth("/messages").then((res) => (res.ok ? res.json() : res)),
 
   sendMessage: (body) =>
     fetchWithAuth("/messages", {
