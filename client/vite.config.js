@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/testabc", // 👈 Added base path for GitHub Pages deployment
+  base: "./", // 👈 Added base path for GitHub Pages deployment
   server: {
     proxy: {
       "/hko-api": {
