@@ -1,0 +1,322 @@
+/* Blog.css */
+.lib-blog-container {
+  display: flex;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  transition: background 0.3s ease;
+}
+
+/* Sidebar Styling */
+.lib-blog-sidebar {
+  width: 260px;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(45px) saturate(200%);
+  -webkit-backdrop-filter: blur(45px) saturate(200%);
+  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 3rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.lib-blog-logo {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 2.5rem;
+}
+
+.lib-nav-item {
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: inherit;
+  margin-bottom: 8px;
+  display: block;
+  width: 100%;
+}
+
+.lib-nav-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.lib-sidebar-footer {
+  margin-top: auto;
+  font-size: 12px;
+  color: #86868b;
+}
+
+/* Main Content Area */
+.lib-blog-content {
+  flex: 1;
+  margin-left: 260px;
+  padding: 40px 60px;
+  max-width: 900px;
+}
+
+.lib-blog-header {
+  margin-bottom: 40px;
+}
+
+.lib-blog-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.lib-blog-header p {
+  color: #000000;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* Card Styling */
+.blog-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.blog-card h2,
+.blog-card p {
+  margin: 0 0 8px 0;
+}
+
+.blog-meta {
+  font-size: 13px;
+  color: #86868b;
+  margin-bottom: 12px;
+}
+
+.blog-text-content {
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+/* Editor Inputs */
+.editor-input-field {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+  font-family: inherit;
+  font-size: 16px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.editor-textarea-field {
+  min-height: 200px;
+  resize: vertical;
+}
+
+.btn-publish-blog,
+.btn-secondary {
+  margin-top: 10px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  background-color: #007aff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.btn-publish-blog:hover,
+.btn-secondary:hover {
+  background-color: #0056b3;
+}
+
+/* Sidebar "New Post" Button specific style */
+.btn-new-post {
+  background-color: #007aff;
+  color: white;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-new-post:hover {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+/* Modal Overlay for Compose Window */
+.compose-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.compose-modal {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(40px) saturate(200%);
+  padding: 30px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.compose-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.compose-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-cancel-compose {
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.blog-timestamp {
+  font-size: 11px;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.btn-delete-mode {
+  background-color: transparent;
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.2);
+}
+
+.btn-delete-mode.active {
+  background-color: #ff3b30;
+  color: white;
+}
+
+.btn-confirm-delete {
+  background-color: #ff3b30;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 15px;
+}
+
+/* Toolbar inside the popup */
+.editor-toolbar {
+  display: flex;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  align-items: center;
+}
+
+.toolbar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolbar-group label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #86868b;
+}
+
+/* Image styling in feed and preview */
+.blog-post-image {
+  width: 100%;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  display: block;
+}
+
+.image-preview {
+  max-height: 150px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.preview-container {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #86868b;
+}
+
+.blog-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-edit-post {
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.btn-edit-post:hover {
+  background: rgba(0, 122, 255, 0.1);
+  transform: scale(1.1);
+}
