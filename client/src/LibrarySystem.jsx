@@ -1,13 +1,9 @@
-import React, { useState, useMemo, useEffect } from "react";
-//import { decryptData } from "./utils/encryption";
-import BC from "./components/BC";
+import { useState, useMemo, useEffect } from "react";
 import SearchBar from "./components/SearchBar";
 import LibAppearance from "./LibAppearance";
 import BookDetailsModal from "./components/BookDetailsModal";
-//import initialData from "./data/books.json";
 import { useNavigate } from "react-router-dom";
 import "./LibrarySystem.css";
-//import { Link } from "react-router-dom";
 import { api } from "./api"; // 引入雲端後端大網關 API
 
 // Image compression helper to stay under 5MB LocalStorage limit (完全保留)
@@ -33,7 +29,7 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
   const [displayUserName, setDisplayUserName] = useState(propUserName);
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- Core States (全面對接雲端，移除初始 localStorage.getItem 的同步綁定) ---
+  // --- Core States ---
   const [books, setBooks] = useState([]);
   const [search, setSearch] = useState("");
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -43,12 +39,12 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
   const [isRemoveMode, setIsRemoveMode] = useState(false);
   const [showAppearance, setShowAppearance] = useState(false);
 
-  // Appearance State (完全保留)
+  // Appearance State
   const [textColor, setTextColor] = useState("#1d1d1f");
   const [textSize, setTextSize] = useState(16);
   const [bgStyle, setBgStyle] = useState({ type: "color", value: "#f0f4f8" });
 
-  // Modal Temp States (完全保留)
+  // Modal Temp States
   const [tempTextColor, setTempTextColor] = useState("#1d1d1f");
   const [tempTextSize, setTempTextSize] = useState(16);
   const [tempBgColor, setTempBgColor] = useState("#f0f4f8");
@@ -64,12 +60,11 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
     totalPages: "",
   });
 
-  // --- 1. Initialization (無縫升級為異步拉取 Render Postgres 雲端設定與書單) ---
+  // --- 1. Initialization (精準修復雲端圖片路徑解析) ---
   useEffect(() => {
     const initLibrary = async () => {
       setIsLoading(true);
       try {
-        // 先同步設定登入者名稱
         const cachedUser = localStorage.getItem("currentUser");
         const activeUser = cachedUser || propUserName;
         setDisplayUserName(activeUser);
@@ -81,25 +76,33 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
           !savedSettings.error &&
           savedSettings.background_type
         ) {
+          let displayBgValue = savedSettings.background_value;
+          // ⚠️ 核心修復：如果雲端存的是純 Base64 圖片，載入時前端自動幫它補上 url() 包裹以利 CSS 渲染
+          if (
+            savedSettings.background_type === "image" &&
+            !displayBgValue.startsWith("url(")
+          ) {
+            displayBgValue = `url(${displayBgValue})`;
+          }
+
           const cloudBg = {
             type: savedSettings.background_type,
-            value: savedSettings.background_value,
+            value: displayBgValue,
           };
+
           setBgStyle(cloudBg);
           if (savedSettings.text_color) setTextColor(savedSettings.text_color);
           if (savedSettings.text_size) setTextSize(savedSettings.text_size);
 
-          // 同步初始化暫存 Modal
+          // 同步初始化暫存 Modal 的預設色彩
           setTempTextColor(savedSettings.text_color);
           setTempTextSize(savedSettings.text_size);
-          setTempBgColor(
-            savedSettings.background_type === "color"
-              ? savedSettings.background_value
-              : "#f0f4f8",
-          );
+          if (savedSettings.background_type === "color") {
+            setTempBgColor(savedSettings.background_value);
+          }
         }
 
-        // B. 異步獲取 Render 雲端 Postgres 永久書籍資料清單
+        // B. 異步獲取雲端書單
         const cloudBooks = await api.getBooks();
         if (cloudBooks && !cloudBooks.error) {
           setBooks(cloudBooks);
@@ -113,47 +116,64 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
     initLibrary();
   }, [propUserName]);
 
-  // --- Handlers (完全保留原圖檔壓縮行為，改為持久化儲存至 Postgres) ---
+  // --- Handlers (精準修復雲端儲存純淨資料流) ---
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files[0]; // 修正多選指標為單選[0]
     if (file) {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const compressed = await compressImage(reader.result);
-        setTempImageBase64(compressed);
+        setTempImageBase64(compressed); // 這裡存的是純淨的 data:image/jpeg;base64...
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleFinalSave = async () => {
-    const finalImage = tempImageBase64 ? `url(${tempImageBase64})` : null;
-    const newBg = finalImage
-      ? { type: "image", value: finalImage }
-      : { type: "color", value: tempBgColor };
+    let cloudBgValue;
+    let localBgValue;
+
+    if (tempImageBase64) {
+      // ⚠️ 核心修復：發給雲端資料庫「純淨的 Base64 數據」，但本地渲染加上 url()
+      cloudBgValue = tempImageBase64;
+      localBgValue = `url(${tempImageBase64})`;
+    } else {
+      cloudBgValue = tempBgColor;
+      localBgValue = tempBgColor;
+    }
+
+    const newBgStyle = {
+      type: tempImageBase64 ? "image" : "color",
+      value: localBgValue,
+    };
 
     try {
-      // 1. 先更新前端 state 保持極速響應
+      // 1. 先更新前端本地狀態，畫面立刻變化
       setTextColor(tempTextColor);
       setTextSize(tempTextSize);
-      setBgStyle(newBg);
+      setBgStyle(newBgStyle);
 
-      // 2. 一鍵推送寫入 Render 後端
-      await api.saveSettings({
-        background_type: newBg.type,
-        background_value: newBg.value,
+      // 2. 一鍵推送寫入 Render 後端資料庫，徹底對齊格式
+      const res = await api.saveSettings({
+        background_type: newBgStyle.type,
+        background_value: cloudBgValue, // 存入純淨數據
         text_color: tempTextColor,
-        text_size: tempTextSize,
+        text_size: parseInt(tempTextSize) || 16,
       });
+
+      if (res && res.error) {
+        alert("雲端儲存未成功: " + res.error);
+        return;
+      }
 
       setShowAppearance(false);
       setTempImageBase64("");
     } catch (e) {
       console.error("Cloud appearance save failure", e);
+      alert("儲存失敗，請檢查網路連線");
     }
   };
 
-  // 串接雲端 Postgres 資料庫添加書籍端點
   const handleSaveBook = async (e) => {
     if (e) e.preventDefault();
     try {
@@ -170,7 +190,6 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
       if (res.error) {
         alert(res.error);
       } else {
-        // 重置輸入格
         setNewBook({
           title: "",
           author: "",
@@ -181,7 +200,6 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
           totalPages: "",
         });
         setShowAddModal(false);
-        // 重新自雲端刷新載入新書單
         const updatedBooks = await api.getBooks();
         if (updatedBooks && !updatedBooks.error) setBooks(updatedBooks);
       }
@@ -190,14 +208,12 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
     }
   };
 
-  // 串接雲端 Postgres 借還狀態互鎖邏輯
   const handleToggleBorrow = async (bookId) => {
     try {
       const res = await api.toggleBorrow(bookId);
       if (res.error) {
         alert(res.error);
       } else {
-        // 借還成功直接拉取資料庫最新狀態同步更新 UI
         const updatedBooks = await api.getBooks();
         if (updatedBooks && !updatedBooks.error) setBooks(updatedBooks);
       }
@@ -206,7 +222,6 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
     }
   };
 
-  // 串接雲端 Postgres 物理刪除端點
   const handleRemoveBook = async (bookId) => {
     if (
       window.confirm("Remove book permanently from Cloud PostgreSQL database?")
@@ -224,24 +239,18 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
     }
   };
 
-  // --- FILTER LOGIC (完全保留您原本手寫的高效數據過濾邏輯與狀態變更) ---
+  // --- FILTER LOGIC (完全保留) ---
   const displayBooks = useMemo(() => {
     const lowerSearch = search.toLowerCase();
-
-    // 1. Handle Search filtering
     let filtered = books.filter(
       (b) =>
         b.title.toLowerCase().includes(lowerSearch) ||
         b.author.toLowerCase().includes(lowerSearch),
     );
 
-    // 2. Filter based on current view
     if (currentView === "catalog") {
-      // Catalog: ONLY show available books
       filtered = filtered.filter((b) => b.status === "Available");
     } else if (currentView === "mybooks") {
-      // My Books: ONLY show books borrowed by the current user
-      // 對應後端返回的欄位名稱 borrowed_by_name (即借閱者的 username)
       filtered = filtered.filter(
         (b) =>
           b.status === "Borrowed" &&
@@ -249,12 +258,13 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
             b.borrowedBy === displayUserName),
       );
     }
-
     return filtered;
   }, [search, books, currentView, displayUserName]);
 
+  // CSS 動態綁定
   const containerStyle = {
-    background: bgStyle.value,
+    background: bgStyle.value.startsWith("url(") ? bgStyle.value : "none",
+    backgroundColor: bgStyle.type === "color" ? bgStyle.value : "transparent",
     backgroundSize: "cover",
     backgroundPosition: "center",
     backgroundAttachment: "fixed",
@@ -336,140 +346,171 @@ const LibrarySystem = ({ userName: propUserName = "Guest" }) => {
               🏠 Dashboard
             </button>
           </nav>
-        </aside>
-      </div>
-
-      <div
-        className="lib-grid"
-        style={{
-          padding: "20px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-          gap: "20px",
-        }}
-      >
-        {displayBooks.map((book) => (
           <div
-            key={book.id}
-            className="lib-book-card"
-            onClick={() => !isRemoveMode && setSelectedBook(book)}
+            className="lib-grid"
             style={{
-              position: "relative",
-              border: "1px solid rgba(0,0,0,0.1)",
-              padding: "15px",
-              borderRadius: "8px",
-              background: "rgba(255,255,255,0.8)",
-              cursor: isRemoveMode ? "default" : "pointer",
+              padding: "20px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: "20px",
             }}
           >
-            {book.title}
-            <p style={{ fontSize: "12px", opacity: 0.8 }}>By {book.author}</p>
-            {isRemoveMode && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRemoveBook(book.id);
-                }}
+            {displayBooks.map((book) => (
+              <div
+                key={book.id}
+                className="lib-book-card"
+                onClick={() => !isRemoveMode && setSelectedBook(book)}
                 style={{
-                  position: "absolute",
-                  top: "10px",
-                  right: "10px",
-                  background: "red",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
+                  position: "relative",
+                  border: "1px solid rgba(0,0,0,0.1)",
+                  padding: "15px",
+                  borderRadius: "8px",
+                  background: "rgba(255,255,255,0.8)",
+                  cursor: isRemoveMode ? "default" : "pointer",
                 }}
               >
-                ✕ Remove
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {showAddModal && (
-        <div
-          className="lib-modal-overlay"
-          onClick={() => setShowAddModal(false)}
-        >
-          <form
-            className="lib-modal"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={handleSaveBook}
-          >
-            ➕ Add New Book
-            {[
-              ["title", "Title"],
-              ["genre", "Genre"],
-              ["publishedYear", "Published Year"],
-              ["author", "Author"],
-              ["isbn", "ISBN"],
-              ["totalPages", "Total Pages"],
-            ].map(([field, placeholder]) => (
-              <input
-                key={field}
-                required={
-                  field === "title" ||
-                  field === "genre" ||
-                  field === "publishedYear" ||
-                  field === "author"
-                }
-                type={
-                  field === "publishedYear" || field === "totalPages"
-                    ? "number"
-                    : "text"
-                }
-                className="lib-mac-input"
-                placeholder={placeholder}
-                value={newBook[field]}
-                onChange={(e) =>
-                  setNewBook({ ...newBook, [field]: e.target.value })
-                }
-              />
+                {book.title}
+                <p style={{ fontSize: "12px", opacity: 0.8 }}>
+                  By {book.author}
+                </p>
+                {isRemoveMode && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveBook(book.id);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "10px",
+                      right: "10px",
+                      background: "red",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✕ Remove
+                  </button>
+                )}
+              </div>
             ))}
-            <textarea
-              className="lib-mac-input lib-textarea"
-              placeholder="Description"
-              value={newBook.description}
-              onChange={(e) =>
-                setNewBook({ ...newBook, description: e.target.value })
-              }
-            />
-            <button
-              type="button"
-              className="lib-btn-secondary"
+          </div>
+
+          {showAddModal && (
+            <div
+              className="lib-modal-overlay"
               onClick={() => setShowAddModal(false)}
             >
-              Cancel
-            </button>
-            <button type="submit" className="lib-btn-primary">
-              Save
-            </button>
-          </form>
-        </div>
-      )}
-      <LibAppearance
-        show={showAppearance}
-        onClose={() => setShowAppearance(false)}
-        tempTextColor={tempTextColor}
-        setTempTextColor={setTempTextColor}
-        tempTextSize={tempTextSize}
-        setTempTextSize={setTempTextSize}
-        tempBgColor={tempBgColor}
-        setTempBgColor={setTempBgColor}
-        handleFileChange={handleFileChange}
-        handleFinalSave={handleFinalSave}
-        tempImageBase64={tempImageBase64}
-      />
-      {selectedBook && (
-        <BookDetailsModal
-          selectedBook={selectedBook}
-          onClose={() => setSelectedBook(null)}
-          onToggleBorrow={handleToggleBorrow}
-          displayUserName={displayUserName}
-        />
-      )}
+              <div className="lib-modal" onClick={(e) => e.stopPropagation()}>
+                ➕ Add New Book
+                <input
+                  required
+                  className="lib-mac-input"
+                  placeholder="Title"
+                  value={newBook.title}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, title: e.target.value })
+                  }
+                />
+                <input
+                  required
+                  className="lib-mac-input"
+                  placeholder="Genre"
+                  value={newBook.genre}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, genre: e.target.value })
+                  }
+                />
+                <input
+                  required
+                  type="number"
+                  className="lib-mac-input"
+                  placeholder="Published Year"
+                  value={newBook.publishedYear}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, publishedYear: e.target.value })
+                  }
+                />
+                <input
+                  required
+                  className="lib-mac-input"
+                  placeholder="Author"
+                  value={newBook.author}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, author: e.target.value })
+                  }
+                />
+                <input
+                  className="lib-mac-input"
+                  placeholder="ISBN"
+                  value={newBook.isbn}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, isbn: e.target.value })
+                  }
+                />
+                <input
+                  type="number"
+                  className="lib-mac-input"
+                  placeholder="Total Pages"
+                  value={newBook.totalPages}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, totalPages: e.target.value })
+                  }
+                />
+                <textarea
+                  className="lib-mac-input lib-textarea"
+                  placeholder="Description"
+                  value={newBook.description}
+                  onChange={(e) =>
+                    setNewBook({ ...newBook, description: e.target.value })
+                  }
+                />
+                <div style={{ marginTop: "15px" }}>
+                  <button
+                    type="button"
+                    className="lib-btn-secondary"
+                    onClick={() => setShowAddModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="lib-btn-primary"
+                    onClick={handleSaveBook}
+                    style={{ marginLeft: "10px" }}
+                  >
+                    Save Book
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <LibAppearance
+            show={showAppearance}
+            onClose={() => setShowAppearance(false)}
+            tempTextColor={tempTextColor}
+            setTempTextColor={setTempTextColor}
+            tempTextSize={tempTextSize}
+            setTempTextSize={setTempTextSize}
+            tempBgColor={tempBgColor}
+            setTempBgColor={setTempBgColor}
+            handleFileChange={handleFileChange}
+            handleFinalSave={handleFinalSave}
+            tempImageBase64={tempImageBase64}
+          />
+
+          {selectedBook && (
+            <BookDetailsModal
+              selectedBook={selectedBook}
+              onClose={() => setSelectedBook(null)}
+              onToggleBorrow={handleToggleBorrow}
+              displayUserName={displayUserName}
+            />
+          )}
+        </aside>
+      </div>
     </div>
   );
 };
