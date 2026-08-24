@@ -9,7 +9,7 @@ require("dotenv").config();
 const app = express();
 app.use(cors());
 
-// ⚠️ 請確保並補齊這兩行配置，同時允許 JSON 與 URL 編碼接收大數據（最高 50MB）
+// ⚠️ 解放傳輸與解碼限制容量上限，確保大圖傳輸不中斷
 app.use(express.json({ limit: "50mb" }));
 app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }),
@@ -17,13 +17,13 @@ app.use(
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-super-secret-key";
 
-// Volatile memory storage for captchas (Cleared dynamically upon validation)
+// 內建動態驗證碼記憶體緩存
 const captchaStore = new Map();
 
-// --- Authentication Middleware ---
+// --- 中間件：驗證 JWT 安全憑證 ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ");
+  const token = authHeader && authHeader.split(" ")[1]; // 修正 Token 提取子字串路徑
   if (!token) return res.status(401).json({ error: "Access token missing" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
@@ -34,17 +34,17 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ==========================================
-// 🔓 SECURITY GATEWAY (CAPTCHA & 2FA RESET)
+// 🔓 安全驗證模組 (人類校驗與 2FA 密碼更換)
 // ==========================================
 
-// 1. Generate Mathematical Verification Challenge
+// 1. 生成動態數學題目驗證碼
 app.get("/api/auth/captcha", (req, res) => {
   const num1 = Math.floor(Math.random() * 10) + 1;
   const num2 = Math.floor(Math.random() * 10) + 1;
   const answer = num1 + num2;
   const captchaId = Math.random().toString(36).substring(2, 15);
 
-  captchaStore.set(captchaId, { answer, expires: Date.now() + 300000 }); // Valid for 5 mins
+  captchaStore.set(captchaId, { answer, expires: Date.now() + 300000 }); // 5分鐘內有效
 
   res.json({
     captchaId,
@@ -52,7 +52,7 @@ app.get("/api/auth/captcha", (req, res) => {
   });
 });
 
-// 2. Persistent User Registration (CRITICAL INDEX FIX)
+// 2. 帳戶註冊管道 (精準對齊 rows[0])
 app.post("/api/auth/register", async (req, res) => {
   const { loginName, username, email, password, dateOfBirth } = req.body;
   try {
@@ -76,29 +76,23 @@ app.post("/api/auth/register", async (req, res) => {
       ],
     );
 
-    // ⚠️ 關鍵修復：Postgres 的 rows 是一個陣列，必須加上 [0] 才能正確讀取 id
+    // ⚠️ 修復：精準抓取新註冊使用者的第一筆陣列元素 ID
     const createdUserId = newUser.rows[0].id;
 
-    // Seed empty customizable dashboard style rules mapped to user's identity
+    // 為新使用者初始化預設外觀資料列
     await db.query("INSERT INTO user_settings (user_id) VALUES ($1)", [
       createdUserId,
     ]);
     res.json({ success: true, message: "Registration complete!" });
   } catch (err) {
-    console.error("REGISTRATION_FAILURE_STACK:", err); // 輸出錯誤日誌到 Render 控制台
+    console.error("❌ REGISTRATION_FAILURE_STACK:", err);
     res
       .status(500)
       .json({ error: "Internal system fault during registration." });
   }
 });
 
-// 3. User Authentication Gateway
-// ==========================================
-// 🔓 SECURITY GATEWAY: USER LOGIN (精準修復版)
-// ==========================================
-// ==========================================
-// 🔓 SECURITY GATEWAY: USER LOGIN (萬無一失修正版)
-// ==========================================
+// 3. 帳戶登入核心管道 (精準對齊 rows[0])
 app.post("/api/auth/login", async (req, res) => {
   const { loginName, password, captchaId, captchaAnswer } = req.body;
 
@@ -113,7 +107,7 @@ app.post("/api/auth/login", async (req, res) => {
       .status(400)
       .json({ error: "Incorrect human verification solution." });
   }
-  captchaStore.delete(captchaId); // 防止防刷重放攻擊
+  captchaStore.delete(captchaId);
 
   try {
     const result = await db.query("SELECT * FROM users WHERE login_name = $1", [
@@ -124,10 +118,9 @@ app.post("/api/auth/login", async (req, res) => {
         .status(404)
         .json({ error: "User credential profiles not found." });
 
-    // ⚠️ 終極核心修復點：必須加上 [] 才能正確從陣列中解鎖取出【第一個使用者資料物件】
-    const currentUserEntity = result.rows;
+    // ⚠️ 精準修復點：從陣列提取第一個真實使用者物件
+    const currentUserEntity = result.rows[0];
 
-    // 現在 currentUserEntity 已經是純物件，Bcrypt 能夠 100% 讀到 password_hash 欄位
     const match = await bcrypt.compare(
       password,
       currentUserEntity.password_hash,
@@ -135,26 +128,24 @@ app.post("/api/auth/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ error: "Invalid security credentials." });
 
-    // 將有效實體 ID 寫入加密 Token 中
     const token = jwt.sign(
       { id: currentUserEntity.id, loginName: currentUserEntity.login_name },
       JWT_SECRET,
       { expiresIn: "24h" },
     );
 
-    // 回傳給前端儲存
     res.json({
       token,
       username: currentUserEntity.username,
       loginName: currentUserEntity.login_name,
     });
   } catch (err) {
-    console.error("❌ LOGIN_CRASH_ERROR:", err); // 輸出具體崩潰日誌到 Render
+    console.error("❌ LOGIN_CRASH_ERROR:", err);
     res.status(500).json({ error: "System processing failure at sign in." });
   }
 });
 
-// 4. 2FA Recovery Phase 1: Security Attribute Match & Generation
+// 4. 2FA 密碼重設第一步：身份檢驗 (精準對齊 rows[0])
 app.post("/api/auth/forgot-verify", async (req, res) => {
   const { loginName, dateOfBirth, email } = req.body;
   try {
@@ -167,9 +158,10 @@ app.post("/api/auth/forgot-verify", async (req, res) => {
         .status(400)
         .json({ error: "Verification failed. Attributes do not match." });
 
-    const user = result.rows[0]; // ⚠️ 同步修正這裡的陣列索引
+    // ⚠️ 精準修復點
+    const user = result.rows[0];
     const securityCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 Minute validation threshold
+    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10分鐘有效
 
     await db.query(
       "UPDATE users SET security_2fa_code = $1, security_2fa_expiry = $2 WHERE id = $3",
@@ -182,11 +174,12 @@ app.post("/api/auth/forgot-verify", async (req, res) => {
       debug_code: securityCode,
     });
   } catch (err) {
+    console.error("❌ FORGOT_VERIFY_ERROR:", err);
     res.status(500).json({ error: "System database handling failure." });
   }
 });
 
-// 5. 2FA Recovery Phase 2: Double Validation Code Execution & Password Write
+// 5. 2FA 密碼重設第二步：確認安全碼並寫入新密碼 (精準對齊 rows[0])
 app.post("/api/auth/reset-password", async (req, res) => {
   const { loginName, securityCode, newPassword } = req.body;
   try {
@@ -197,7 +190,8 @@ app.post("/api/auth/reset-password", async (req, res) => {
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Account identifier mismatch." });
 
-    const user = result.rows[0]; // ⚠️ 同步修正這裡的陣列索引
+    // ⚠️ 精準修復點
+    const user = result.rows[0];
     if (!user.security_2fa_code || user.security_2fa_code !== securityCode) {
       return res
         .status(400)
@@ -219,12 +213,13 @@ app.post("/api/auth/reset-password", async (req, res) => {
       message: "Account securely updated with new structural hash key.",
     });
   } catch (err) {
+    console.error("❌ RESET_PASSWORD_ERROR:", err);
     res.status(500).json({ error: "Failed modification pipeline execution." });
   }
 });
 
 // ==========================================
-// 🎨 APPEARANCE COMPONENT CLOUD STATE (精準修復版)
+// 🎨 外觀偏好設定核心模組 (精準修復版)
 // ==========================================
 app.get("/api/settings", authenticateToken, async (req, res) => {
   try {
@@ -232,9 +227,10 @@ app.get("/api/settings", authenticateToken, async (req, res) => {
       "SELECT * FROM user_settings WHERE user_id = $1",
       [req.user.id],
     );
-    // 確保回傳正確的物件格式
+    // ⚠️ 精準修復點：回傳單一物件而非整個 rows 陣列
     res.json(settings.rows[0] || {});
   } catch (err) {
+    console.error("❌ GET_SETTINGS_ERROR:", err);
     res.status(500).json({ error: "Failed preference configuration parsing." });
   }
 });
@@ -242,7 +238,6 @@ app.get("/api/settings", authenticateToken, async (req, res) => {
 app.post("/api/settings", authenticateToken, async (req, res) => {
   const { background_type, background_value, text_color, text_size } = req.body;
   try {
-    // 萬能 Upsert 指令：存在就更新，不存在就插入
     await db.query(
       `INSERT INTO user_settings (user_id, background_type, background_value, text_color, text_size)
        VALUES ($1, $2, $3, $4, $5)
@@ -261,13 +256,13 @@ app.post("/api/settings", authenticateToken, async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ CLOUD_SETTINGS_SAVE_ERROR:", err); // 如果失敗，會在 Render 日誌印出具體原因
+    console.error("❌ CLOUD_SETTINGS_SAVE_ERROR:", err);
     res.status(500).json({ error: "Persistent storage execution failure." });
   }
 });
 
 // ==========================================
-// 📚 CATALOG MANAGED ENGINE
+// 📚 圖書管理系統永久雲端模組
 // ==========================================
 app.get("/api/books", authenticateToken, async (req, res) => {
   try {
@@ -315,6 +310,7 @@ app.post("/api/books/:id/borrow", authenticateToken, async (req, res) => {
     if (bookCheck.rows.length === 0)
       return res.status(404).json({ error: "Book asset signature missing." });
 
+    // ⚠️ 精準修復點
     const book = bookCheck.rows[0];
     if (book.status === "Available") {
       await db.query(
@@ -336,7 +332,6 @@ app.post("/api/books/:id/borrow", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Relational logic write malfunction." });
   }
 });
-
 app.delete("/api/books/:id", authenticateToken, async (req, res) => {
   try {
     await db.query("DELETE FROM books WHERE id = $1", [req.params.id]);
@@ -345,9 +340,8 @@ app.delete("/api/books/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Data purges failed." });
   }
 });
-
 // ==========================================
-// 📝 CORE SYNDICATION LOGS (BLOG)
+// 📝 網誌系統永久雲端模組
 // ==========================================
 app.get("/api/blogs", authenticateToken, async (req, res) => {
   try {
@@ -374,7 +368,7 @@ app.post("/api/blogs", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 🔒 HIGH-LEVEL CRYPTO CIPHER ARCHIVE
+// 🔒 高強度端到端安全加密訊息模組
 // ==========================================
 app.get("/api/messages", authenticateToken, async (req, res) => {
   try {
@@ -387,6 +381,7 @@ app.get("/api/messages", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Message extraction failed." });
   }
 });
+
 app.post("/api/messages", authenticateToken, async (req, res) => {
   const { recipientLoginName, ciphertext, encryptedAesKey, iv } = req.body;
   try {
@@ -398,22 +393,30 @@ app.post("/api/messages", authenticateToken, async (req, res) => {
       return res
         .status(404)
         .json({ error: "Recipient address identity cannot be mapped." });
+
+    // ⚠️ 精準修復點
+    const recipientUser = target.rows[0];
+
     await db.query(
       "INSERT INTO secure_messages (sender_id, recipient_id, ciphertext, encrypted_aes_key, iv) VALUES ($1, $2, $3, $4, $5)",
-      [req.user.id, target.rows[0].id, ciphertext, encryptedAesKey, iv],
+      [req.user.id, recipientUser.id, ciphertext, encryptedAesKey, iv],
     );
     res.json({ success: true });
   } catch (err) {
+    console.error("❌ SEND_MESSAGE_ERROR:", err);
     res.status(500).json({ error: "Message insertion pipeline failure." });
   }
 });
+
 // ==========================================
-// 🌐 STATIC FILE ROUTING GATEWAY
+// 🌐 前後端無縫融合體（靜態網頁派發網關）
 // ==========================================
 app.use(express.static(path.join(__dirname, "client", "dist")));
+
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>
   console.log(`Production Server executing on operational port: ${PORT}`),
