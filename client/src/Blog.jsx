@@ -1,27 +1,57 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "./api"; // 引入雲端後端大網關 API
-import "./Blog.css"; // 保留您原本的網誌樣式表
+import { api } from "./api";
+import BlogAppearance from "./BlogAppearance";
+import BlogCompose from "./BlogCompose";
 
 const Blog = () => {
   const navigate = useNavigate();
 
   // --- 狀態宣告 ---
   const [blogs, setBlogs] = useState([]);
-  const [newBlog, setNewBlog] = useState({ title: "", content: "" });
   const [isLoading, setIsLoading] = useState(true);
   const [displayUserName, setDisplayUserName] = useState("Guest");
 
-  // --- 頁面初始化：從雲端拉取歷史網誌與用戶狀態 ---
+  // 外觀設定狀態 (BlogAppearance)
+  const [showAppearance, setShowAppearance] = useState(false);
+  const [textColor, setTextColor] = useState("#000000");
+  const [textSize, setTextSize] = useState(16);
+  const [background, setBackground] = useState({
+    type: "color",
+    value: "transparent",
+  });
+
+  // 暫存外觀設定
+  const [tempTextColor, setTempTextColor] = useState("#000000");
+  const [tempTextSize, setTempTextSize] = useState(16);
+  const [tempBgColor, setTempBgColor] = useState("#ffffff");
+  const [tempImageBase64, setTempImageBase64] = useState("");
+
+  // 撰寫/編輯文章彈窗狀態 (BlogCompose)
+  const [showCompose, setShowCompose] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [newPost, setNewPost] = useState({
+    title: "",
+    content: "",
+    postColor: "#000000",
+    postSize: 16,
+    postImage: "",
+    isShared: true,
+    sharedWith: "",
+  });
+
+  // 刪除模式狀態
+  const [deleteMode, setDeleteMode] = useState(false);
+
+  // --- 初始化載入 ---
   useEffect(() => {
     const initBlogSystem = async () => {
       setIsLoading(true);
       try {
-        // 設定顯示的登入者名稱
         const cachedUser = localStorage.getItem("currentUser");
         if (cachedUser) setDisplayUserName(cachedUser);
 
-        // 自 Render 後端永久 Postgres 資料庫讀取所有網誌文章
         const cloudBlogs = await api.getBlogs();
         if (cloudBlogs && !cloudBlogs.error) {
           setBlogs(cloudBlogs);
@@ -35,174 +65,291 @@ const Blog = () => {
     initBlogSystem();
   }, []);
 
-  // --- 處理發表新網誌 (寫入 PostgreSQL 永久儲存) ---
-  const handlePublishBlog = async (e) => {
+  // --- 處理檔案選擇 (背景桌布) ---
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10485760) {
+        alert("圖片檔案過大，請選擇 10MB 以下的圖片。");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTempImageBase64(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // --- 套用外觀設定 ---
+  const handleFinalSave = () => {
+    setTextColor(tempTextColor);
+    setTextSize(tempTextSize);
+    if (tempImageBase64) {
+      setBackground({ type: "image", value: tempImageBase64 });
+    } else {
+      setBackground({ type: "color", value: tempBgColor });
+    }
+    setShowAppearance(false);
+  };
+
+  // --- 發表或更新文章 ---
+  const handlePublish = async (e) => {
     e.preventDefault();
-    if (!newBlog.title.trim() || !newBlog.content.trim()) {
+    if (!newPost.title.trim() || !newPost.content.trim()) {
       alert("標題與內容不能為空");
       return;
     }
 
     try {
-      const res = await api.addBlog({
-        title: newBlog.title,
-        content: newBlog.content,
+      if (isEditing && editingPostId) {
+        // 假設有編輯 API，若無則依實際後端調整
+        const res = (await api.updateBlog)
+          ? await api.updateBlog(editingPostId, newPost)
+          : await api.addBlog(newPost);
+        if (res && res.error) {
+          alert(res.error);
+        }
+      } else {
+        const res = await api.addBlog({
+          title: newPost.title,
+          content: newPost.content,
+          postColor: newPost.postColor,
+          postSize: newPost.postSize,
+          postImage: newPost.postImage,
+          isShared: newPost.isShared,
+          sharedWith: newPost.sharedWith,
+        });
+        if (res && res.error) {
+          alert(res.error);
+        }
+      }
+
+      // 重置並重新載入文章
+      setShowCompose(false);
+      setIsEditing(false);
+      setEditingPostId(null);
+      setNewPost({
+        title: "",
+        content: "",
+        postColor: "#000000",
+        postSize: 16,
+        postImage: "",
+        isShared: true,
+        sharedWith: "",
       });
 
-      if (res.error) {
-        alert(res.error);
-      } else {
-        // 發表成功，清空輸入框
-        setNewBlog({ title: "", content: "" });
-        // 重新自雲端刷新文章清單
-        const updatedBlogs = await api.getBlogs();
-        if (updatedBlogs && !updatedBlogs.error) setBlogs(updatedBlogs);
-      }
+      const updatedBlogs = await api.getBlogs();
+      if (updatedBlogs && !updatedBlogs.error) setBlogs(updatedBlogs);
     } catch (err) {
-      alert("發佈網誌失敗，請檢查網絡連線。");
+      alert("發佈或更新網誌失敗，請檢查網絡連線。");
     }
+  };
+
+  // --- 刪除文章 ---
+  const handleDeletePost = async (id) => {
+    if (!window.confirm("確定要刪除這篇文章嗎？")) return;
+    try {
+      if (api.deleteBlog) {
+        await api.deleteBlog(id);
+      }
+      const updatedBlogs = await api.getBlogs();
+      if (updatedBlogs && !updatedBlogs.error) setBlogs(updatedBlogs);
+    } catch (err) {
+      alert("刪除失敗");
+    }
+  };
+
+  // --- 開啟編輯視窗 ---
+  const handleEditClick = (post) => {
+    setIsEditing(true);
+    setEditingPostId(post.id);
+    setNewPost({
+      title: post.title || "",
+      content: post.content || "",
+      postColor: post.postColor || "#000000",
+      postSize: post.postSize || 16,
+      postImage: post.postImage || "",
+      isShared: post.isShared ?? true,
+      sharedWith: post.sharedWith || "",
+    });
+    setShowCompose(true);
+  };
+
+  // 計算動態背景樣式
+  const getContainerBackgroundStyle = () => {
+    if (background.type === "image") {
+      return {
+        backgroundImage: `url(${background.value})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    return {
+      backgroundColor:
+        background.value !== "transparent" ? background.value : "#f5f5f7",
+    };
   };
 
   if (isLoading)
     return (
-      <div style={{ padding: "20px", color: "#fff" }}>
+      <div style={{ padding: "40px", textAlign: "center", color: "#333" }}>
         Loading Cloud Blog System...
       </div>
     );
 
   return (
-    <div
-      className="blog-master-container"
-      style={{ padding: "20px", minHeight: "100vh" }}
-    >
-      {/* 頂部導航區域 (保留您原本的返回排版) */}
-      <header
-        className="blog-header-section"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "30px",
-        }}
-      >
-        <h2>📝 雲端永久網誌系統 (Blog)</h2>
+    <div className="lib-blog-container" style={getContainerBackgroundStyle()}>
+      {/* 側邊欄 (Sidebar) */}
+      <aside className="lib-blog-sidebar">
+        <div className="lib-blog-logo">📝 雲端網誌</div>
+
         <button
-          className="blog-back-btn"
-          onClick={() => navigate("/dashboard")}
-          style={{ padding: "8px 16px", cursor: "pointer" }}
+          className="lib-nav-item btn-new-post"
+          onClick={() => {
+            setIsEditing(false);
+            setNewPost({
+              title: "",
+              content: "",
+              postColor: "#000000",
+              postSize: 16,
+              postImage: "",
+              isShared: true,
+              sharedWith: "",
+            });
+            setShowCompose(true);
+          }}
         >
-          返回主控台
+          <span>＋</span> 發表新文章
         </button>
-      </header>
 
-      {/* 發表新文章表單容器 - 完美契合原本 UI */}
-      <div
-        className="blog-write-card"
-        style={{
-          background: "rgba(255,255,255,0.95)",
-          padding: "20px",
-          borderRadius: "8px",
-          marginBottom: "30px",
-          color: "#000",
-        }}
-      >
-        <h3>發表新文章 (當前作者: {displayUserName})</h3>
-        <form
-          onSubmit={handlePublishBlog}
-          style={{ display: "grid", gap: "15px" }}
+        <button
+          className="lib-nav-item"
+          onClick={() => setShowAppearance(true)}
         >
-          <input
-            type="text"
-            placeholder="請輸入文章標題..."
-            value={newBlog.title}
-            onChange={(e) => setNewBlog({ ...newBlog, title: e.target.value })}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
-            required
-          />
-          <textarea
-            placeholder="撰寫您的網誌內容..."
-            value={newBlog.content}
-            onChange={(e) =>
-              setNewBlog({ ...newBlog, content: e.target.value })
-            }
-            style={{
-              width: "100%",
-              height: "150px",
-              padding: "10px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              resize: "vertical",
-            }}
-            required
-          />
-          <button
-            type="submit"
-            style={{
-              background: "#1d1d1f",
-              color: "#fff",
-              padding: "10px",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
-          >
-            安全發佈文章至雲端
-          </button>
-        </form>
-      </div>
+          🎨 風格設定
+        </button>
 
-      {/* 歷史文章列表展示 */}
-      <div className="blog-timeline-section">
-        <h3>✨ 歷史文章串流</h3>
-        {blogs.length === 0 ? (
-          <p style={{ color: "#eee", fontStyle: "italic" }}>
-            目前雲端資料庫中尚無任何文章，快來發表第一篇吧！
-          </p>
-        ) : (
-          blogs.map((post) => (
-            <div
-              key={post.id}
-              className="blog-post-card"
-              style={{
-                background: "rgba(255,255,255,0.9)",
-                padding: "20px",
-                borderRadius: "8px",
-                marginBottom: "15px",
-                color: "#000",
-              }}
-            >
-              <h4 style={{ margin: "0 0 10px 0", fontSize: "20px" }}>
-                {post.title}
-              </h4>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#666",
-                  marginBottom: "10px",
-                }}
-              >
-                <span>
-                  ✍️ 作者: <strong>{post.username || "未知用戶"}</strong>
-                </span>
-                <span style={{ marginLeft: "15px" }}>
-                  📅 時間: {new Date(post.created_at).toLocaleString()}
-                </span>
+        <button
+          className={`lib-nav-item btn-delete-mode ${deleteMode ? "active" : ""}`}
+          onClick={() => setDeleteMode(!deleteMode)}
+        >
+          {deleteMode ? "完成刪除模式" : "🗑️ 刪除文章"}
+        </button>
+
+        <button className="lib-nav-item" onClick={() => navigate("/dashboard")}>
+          🏠 返回主控台
+        </button>
+
+        <div className="lib-sidebar-footer">
+          用戶: <strong>{displayUserName}</strong>
+        </div>
+      </aside>
+
+      {/* 主內容區域 (Main Content Area) */}
+      <main className="lib-blog-content">
+        <header className="lib-blog-header">
+          <h1>雲端永久網誌系統</h1>
+          <p>歡迎回來，探索與記錄您的精彩時刻。</p>
+        </header>
+
+        {/* 歷史文章串流 */}
+        <div className="lib-blog-timeline">
+          {blogs.length === 0 ? (
+            <p className="blog-empty-text">
+              目前雲端資料庫中尚無任何文章，快來點擊左側「發表新文章」吧！
+            </p>
+          ) : (
+            blogs.map((post) => (
+              <div key={post.id || post._id} className="blog-card">
+                <div className="blog-timestamp">
+                  {new Date(post.created_at || Date.now()).toLocaleString()}
+                </div>
+
+                <h2 style={{ color: textColor, fontSize: `${textSize + 4}px` }}>
+                  {post.title}
+                </h2>
+
+                <div className="blog-meta">
+                  <span>
+                    ✍️ 作者: <strong>{post.username || displayUserName}</strong>
+                  </span>
+                </div>
+
+                {post.postImage && (
+                  <img
+                    src={post.postImage}
+                    alt="Post media"
+                    className="blog-post-image"
+                  />
+                )}
+
+                <p
+                  className="blog-text-content"
+                  style={{
+                    color: post.postColor || textColor,
+                    fontSize: `${post.postSize || textSize}px`,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {post.content}
+                </p>
+
+                <div
+                  className="blog-card-actions"
+                  style={{ marginTop: "15px" }}
+                >
+                  <button
+                    className="btn-edit-post"
+                    onClick={() => handleEditClick(post)}
+                    title="編輯文章"
+                  >
+                    ✏️
+                  </button>
+
+                  {deleteMode && (
+                    <button
+                      className="btn-confirm-delete"
+                      onClick={() => handleDeletePost(post.id || post._id)}
+                    >
+                      確認刪除
+                    </button>
+                  )}
+                </div>
               </div>
-              <p
-                style={{ whiteSpace: "pre-wrap", lineHeight: "1.6", margin: 0 }}
-              >
-                {post.content}
-              </p>
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      </main>
+
+      {/* 外觀設定彈窗組件 */}
+      <BlogAppearance
+        show={showAppearance}
+        onClose={() => setShowAppearance(false)}
+        textColor={textColor}
+        textSize={textSize}
+        background={background}
+        tempTextColor={tempTextColor}
+        setTempTextColor={setTempTextColor}
+        tempTextSize={tempTextSize}
+        setTempTextSize={setTempTextSize}
+        tempBgColor={tempBgColor}
+        setTempBgColor={setTempBgColor}
+        tempImageBase64={tempImageBase64}
+        setTempImageBase64={setTempImageBase64}
+        handleFileChange={handleFileChange}
+        handleFinalSave={handleFinalSave}
+      />
+
+      {/* 撰寫/編輯文章彈窗組件 */}
+      <BlogCompose
+        show={showCompose}
+        onClose={() => setShowCompose(false)}
+        newPost={newPost}
+        setNewPost={setNewPost}
+        onPublish={handlePublish}
+        isEditing={isEditing}
+      />
     </div>
   );
 };
