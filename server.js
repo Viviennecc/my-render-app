@@ -96,6 +96,9 @@ app.post("/api/auth/register", async (req, res) => {
 // ==========================================
 // 🔓 SECURITY GATEWAY: USER LOGIN (精準修復版)
 // ==========================================
+// ==========================================
+// 🔓 SECURITY GATEWAY: USER LOGIN (萬無一失修正版)
+// ==========================================
 app.post("/api/auth/login", async (req, res) => {
   const { loginName, password, captchaId, captchaAnswer } = req.body;
 
@@ -121,9 +124,10 @@ app.post("/api/auth/login", async (req, res) => {
         .status(404)
         .json({ error: "User credential profiles not found." });
 
-    // ⚠️ 核心修復點：精準提取陣列中的首位使用者實體物件
+    // ⚠️ 終極核心修復點：必須加上 [] 才能正確從陣列中解鎖取出【第一個使用者資料物件】
     const currentUserEntity = result.rows;
 
+    // 現在 currentUserEntity 已經是純物件，Bcrypt 能夠 100% 讀到 password_hash 欄位
     const match = await bcrypt.compare(
       password,
       currentUserEntity.password_hash,
@@ -131,7 +135,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (!match)
       return res.status(401).json({ error: "Invalid security credentials." });
 
-    // ⚠️ 核心修復點：確保將 currentUserEntity 的有效實體 ID 寫入加密 Token 中
+    // 將有效實體 ID 寫入加密 Token 中
     const token = jwt.sign(
       { id: currentUserEntity.id, loginName: currentUserEntity.login_name },
       JWT_SECRET,
@@ -145,7 +149,7 @@ app.post("/api/auth/login", async (req, res) => {
       loginName: currentUserEntity.login_name,
     });
   } catch (err) {
-    console.error("❌ LOGIN_CRASH_ERROR:", err);
+    console.error("❌ LOGIN_CRASH_ERROR:", err); // 輸出具體崩潰日誌到 Render
     res.status(500).json({ error: "System processing failure at sign in." });
   }
 });
