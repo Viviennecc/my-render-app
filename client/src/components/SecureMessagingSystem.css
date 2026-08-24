@@ -1,0 +1,229 @@
+/* SecureMessagingSystem.css */
+
+.msg-system-card {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  color: #1d1d1f;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+}
+
+.msg-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.msg-layout {
+  display: flex;
+  gap: 24px;
+}
+
+/* Sidebar / Contacts */
+.msg-contacts-sidebar {
+  width: 200px;
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  padding-right: 16px;
+}
+
+.msg-section-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: #86868b;
+  margin-bottom: 12px;
+}
+
+.msg-user-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  transition: all 0.2s ease;
+}
+
+.msg-user-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.msg-user-item.msg-active {
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+}
+
+/* Main Panel / Composer */
+.msg-main-panel {
+  flex: 1;
+}
+
+.msg-composer-area {
+  width: 100%;
+  height: 90px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.5);
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.msg-composer-area:focus {
+  border-color: #007aff;
+}
+
+.msg-send-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.msg-send-btn:disabled {
+  background: #a2a2a7;
+  cursor: not-allowed;
+}
+
+.msg-send-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* Inbox */
+.msg-inbox-section {
+  margin-top: 28px;
+}
+
+.msg-item {
+  background: rgba(255, 255, 255, 0.6);
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.msg-item:hover {
+  transform: translateY(-1px);
+}
+
+.msg-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-sender-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.msg-timestamp {
+  font-size: 11px;
+  color: #86868b;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.msg-btn-read {
+  background: #007aff;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.msg-btn-delete {
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.msg-btn-delete:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
+}
+.message-composer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.composer-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #888; /* Dimmer color for a professional 'label' look */
+  margin: 0;
+  font-weight: 600;
+}
+
+.msg-composer-area {
+  /* Your existing styles here */
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #333;
+  color: rgb(0, 0, 0);
+  resize: vertical;
+}
+.msg-subject-input {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #333;
+  border-bottom: none; /* Merges it visually with the textarea */
+  padding: 10px 12px;
+  color: #000000; /* Matrix/Secure green */
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+  border-radius: 4px 4px 0 0;
+  padding-bottom: 5px;
+}
+
+.msg-composer-area {
+  border-radius: 0 0 4px 4px !important;
+}
+
+.msg-subject-preview {
+  font-weight: bold;
+  color: #ccc;
+  font-size: 13px;
+  display: block;
+  margin: 2px 0;
+}

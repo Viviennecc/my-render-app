@@ -1,0 +1,346 @@
+/* --- Global Widget Container --- */
+.weather-card,
+.airport-widget {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    sans-serif;
+  background: rgba(28, 28, 30, 0.7); /* Dark semi-transparent */
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 20px;
+  border-radius: 20px;
+  color: #ffffff;
+  max-width: 450px; /* Adjusted for better layout */
+  margin: 10px auto;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: transform 0.3s ease;
+}
+
+/* --- Header Section --- */
+.weather-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.weather-title,
+.card-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.weather-icon-img {
+  width: 42px;
+  height: 42px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* --- Warning & Alerts --- */
+.warning-banner {
+  background-color: #ff3b30; /* System Red */
+  color: white;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3);
+}
+
+.warning-icon {
+  margin-right: 10px;
+  font-size: 18px;
+}
+
+.warning-text-scroll {
+  white-space: nowrap;
+  animation: marquee 20s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* --- Summary & Metrics --- */
+.summary-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  margin-bottom: 20px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.summary-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #8e8e93;
+  margin-bottom: 4px;
+}
+
+.summary-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.high-temp {
+  color: #ff9f0a;
+} /* Orange */
+.low-temp {
+  color: #64d2ff;
+} /* Light Blue */
+
+/* --- Regional Grid & Rows --- */
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 15px 0 10px 5px;
+  color: #8e8e93;
+  letter-spacing: 1px;
+}
+
+.weather-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s;
+}
+
+.weather-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.place-name {
+  font-size: 14px;
+  font-weight: 400;
+}
+.temp-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* --- Airport Specific: Runway & Radar --- */
+.rwy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.rwy-item {
+  padding: 15px;
+  border-radius: 12px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rwy-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  color: #8e8e93;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.rwy-value {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.landing .rwy-value {
+  color: #007aff;
+} /* Blue for Arrivals */
+.takeoff .rwy-value {
+  color: #34c759;
+} /* Green for Departures */
+
+.radar-container {
+  margin-top: 15px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.radar-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* --- Decoding METAR Box --- */
+.decode-box {
+  background: rgba(0, 122, 255, 0.08);
+  border-left: 4px solid #007aff;
+  padding: 12px;
+  margin: 15px 0;
+  border-radius: 0 10px 10px 0;
+}
+
+.decode-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  color: #007aff;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.decode-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e5e5e7;
+  margin: 0;
+}
+
+.raw-snippet {
+  font-family: "SF Mono", monospace;
+  font-size: 10px;
+  background: #000;
+  padding: 8px;
+  border-radius: 6px;
+  color: #34c759; /* Terminal green */
+  opacity: 0.8;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* --- Footer --- */
+.weather-footer {
+  margin-top: 20px;
+  font-size: 10px;
+  color: #8e8e93;
+  text-align: right;
+  font-weight: 500;
+}
+
+/* Navigation Controls */
+.view-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.nav-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.nav-btn.active {
+  background: #007aff;
+  color: white;
+}
+
+/* 9-Day Forecast Styles */
+.forecast-scroll-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 10px 0;
+  scrollbar-width: none; /* Firefox */
+}
+
+.forecast-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.forecast-day-card {
+  min-width: 80px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.fd-date {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+.fd-icon {
+  width: 30px;
+  height: 30px;
+  margin: 5px 0;
+}
+.fd-temp {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.fd-psr {
+  font-size: 9px;
+  color: #8e8e93;
+}
+
+/* Current View Enhancements */
+.main-obs-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.main-temp-val {
+  font-size: 42px;
+  font-weight: 200;
+}
+
+.local-desc {
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+.metrics-bar {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #8e8e93;
+}
+
+.outlook-tag {
+  color: #34c759;
+  font-weight: 700;
+}
+
+.radar-caption {
+  text-align: center;
+  font-size: 10px;
+  margin-top: 8px;
+  opacity: 0.5;
+}
