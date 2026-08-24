@@ -1,111 +1,100 @@
 import React, { useState, useEffect } from "react";
-
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
 import LibrarySystem from "./LibrarySystem";
 import Blog from "./Blog";
-import AirportWeather from "./components/AirportWeather"; // --- IGNORE ---
-import DOHWeather from "./components/DOHWeather"; // --- IGNORE ---
-import LHRWeather from "./components/LHRWeather";
+
+// 保留你原本的天氣與其餘組件引用 (如果沒用到可以放著不影響)
+import AirportWeather from "./components/AirportWeather";
 
 function App() {
-  // Initialize state from localStorage
-  const [currentUser, setCurrentUser] = useState(
-    localStorage.getItem("currentUser"),
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Sync state if localStorage changes in other tabs
+  // 初始化檢查雲端登入狀態憑證
   useEffect(() => {
-    const handleStorageChange = () => {
-      setCurrentUser(localStorage.getItem("currentUser"));
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    const token = localStorage.getItem("token");
+    const cachedUser = localStorage.getItem("currentUser");
+
+    if (token && cachedUser) {
+      setIsAuthenticated(true);
+      setUserName(cachedUser);
+    } else {
+      setIsAuthenticated(false);
+      setUserName("");
+    }
+    setLoading(false);
   }, []);
 
-  // SUCCESSFUL LOGIN HANDLER
-  const onLoginSuccess = (userDisplayName) => {
-    setCurrentUser(userDisplayName);
+  const handleLoginSuccess = (username) => {
+    setIsAuthenticated(true);
+    setUserName(username);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem("encrypted_user_name");
-    setCurrentUser(null);
+    localStorage.clear(); // 清空所有緩存憑證
+    setIsAuthenticated(false);
+    setUserName("");
+    window.location.href = "/"; // 物理重置回根目錄
   };
 
+  if (loading) {
+    return (
+      <div style={{ color: "#fff", padding: "20px" }}>
+        Loading Security Context...
+      </div>
+    );
+  }
+
   return (
-    /* ADDED BASENAME HERE */
-    <Router basename={import.meta.env.BASE_URL}>
+    <BrowserRouter>
       <Routes>
-        {/* If logged in, "/" sends you to dashboard. If not, show Login */}
+        {/* 首頁路由保護：如果未登入，直接渲染 Login，拒絕使用 Navigate 導向防止死循環 */}
         <Route
           path="/"
           element={
-            currentUser ? (
+            isAuthenticated ? (
               <Navigate to="/dashboard" replace />
             ) : (
-              <Login onLoginSuccess={onLoginSuccess} />
+              <Login onLoginSuccess={handleLoginSuccess} />
             )
           }
         />
 
-        {/* Protected Dashboard */}
+        {/* 核心工作路由保護 */}
         <Route
           path="/dashboard"
           element={
-            currentUser ? (
-              <Dashboard userName={currentUser} onLogout={handleLogout} />
+            isAuthenticated ? (
+              <Dashboard userName={userName} onLogout={handleLogout} />
             ) : (
               <Navigate to="/" replace />
             )
           }
         />
 
-        {/* Protected Library */}
         <Route
           path="/library"
           element={
-            currentUser ? <LibrarySystem /> : <Navigate to="/" replace />
-          }
-        />
-        {/* Protected Blog */}
-        <Route
-          path="/blog"
-          element={
-            currentUser ? (
-              <Blog userName={currentUser} />
+            isAuthenticated ? (
+              <LibrarySystem userName={userName} />
             ) : (
               <Navigate to="/" replace />
             )
           }
         />
-        {/* Protected Airport Weather */}
+
         <Route
-          path="/AirportWeather"
-          element={
-            currentUser ? <AirportWeather /> : <Navigate to="/" replace />
-          }
+          path="/Blog"
+          element={isAuthenticated ? <Blog /> : <Navigate to="/" replace />}
         />
-        <Route
-          path="/DOHWeather"
-          element={currentUser ? <DOHWeather /> : <Navigate to="/" replace />}
-        />
-        <Route
-          path="/LHRWeather"
-          element={currentUser ? <LHRWeather /> : <Navigate to="/" replace />}
-        />
-        {/* Fallback */}
+
+        {/* 萬能降級攔截：如果路徑打錯，一律回到首頁 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
 
