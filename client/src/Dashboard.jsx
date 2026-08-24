@@ -88,33 +88,39 @@ const Dashboard = ({ userName: propUserName, onLogout }) => {
   }, []);
 
   // --- 核心：將新設定同步寫入雲端資料庫保存 ---
+  // --- 核心：將新設定同步寫入雲端資料庫保存 (精準修復版) ---
   const handleFinalSave = async () => {
     let finalBg;
     if (tempImageBase64) {
+      // 確保將純 Base64 內容發送給後端儲存
       finalBg = { type: "image", value: tempImageBase64 };
     } else {
       finalBg = { type: "color", value: tempBgColor };
     }
 
-    // 更新前端當前狀態以立即呈現效果
-    setBackground(finalBg);
-    setTextColor(tempTextColor);
-    setTextSize(tempTextSize);
-
     try {
-      // 發送至 Render 後端 API 永久儲存至 Postgres
-      await api.saveSettings({
+      // 1. 發送至 Render 後端 API 永久儲存至 Postgres
+      const res = await api.saveSettings({
         background_type: finalBg.type,
-        background_value: finalBg.value,
+        background_value: finalBg.value, // 純淨的字串數據
         text_color: tempTextColor,
         text_size: tempTextSize,
       });
+
+      if (res && res.error) {
+        alert("雲端儲存失敗: " + res.error);
+        return;
+      }
+
+      // 2. 後端確認成功後，再更新前端當前狀態以呈現效果
+      setBackground(finalBg);
+      setTextColor(tempTextColor);
+      setTextSize(tempTextSize);
+      setShowAppearance(false);
     } catch (err) {
       console.error("同步至雲端資料庫失敗:", err);
       alert("外觀設定儲存失敗，請檢查網路連線");
     }
-
-    setShowAppearance(false);
   };
 
   // 外觀容器樣式（動態綁定雲端下載的設定）

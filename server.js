@@ -8,7 +8,10 @@ require("dotenv").config();
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+
+// ⚠️ 請確保並補齊這兩行配置，同時允許 JSON 與 URL 編碼接收大數據（最高 50MB）
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-super-secret-key";
 
