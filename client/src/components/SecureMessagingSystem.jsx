@@ -40,17 +40,7 @@ const SecureMessagingSystem = () => {
   return (
     <div>
       <h2>高強度端到端加密通訊錄</h2>
-      <div
-        className="chat-box"
-        style={{
-          height: "200px",
-          overflowY: "scroll",
-          border: "1px solid #ccc",
-          padding: "10px",
-          background: "#fff",
-          color: "#000",
-        }}
-      >
+      <div className="chat-box">
         {messages.map((m) => (
           <div key={m.id} style={{ marginBottom: "10px" }}>
             <strong>
