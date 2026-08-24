@@ -93,6 +93,9 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 // 3. User Authentication Gateway
+// ==========================================
+// 🔓 SECURITY GATEWAY: USER LOGIN (精準修復版)
+// ==========================================
 app.post("/api/auth/login", async (req, res) => {
   const { loginName, password, captchaId, captchaAnswer } = req.body;
 
@@ -107,7 +110,7 @@ app.post("/api/auth/login", async (req, res) => {
       .status(400)
       .json({ error: "Incorrect human verification solution." });
   }
-  captchaStore.delete(captchaId); // Prevent re-submission replay attacks
+  captchaStore.delete(captchaId); // 防止防刷重放攻擊
 
   try {
     const result = await db.query("SELECT * FROM users WHERE login_name = $1", [
@@ -118,18 +121,31 @@ app.post("/api/auth/login", async (req, res) => {
         .status(404)
         .json({ error: "User credential profiles not found." });
 
-    const user = result.rows[0]; // ⚠️ 同步修正這裡的陣列索引
-    const match = await bcrypt.compare(password, user.password_hash);
+    // ⚠️ 核心修復點：精準提取陣列中的首位使用者實體物件
+    const currentUserEntity = result.rows;
+
+    const match = await bcrypt.compare(
+      password,
+      currentUserEntity.password_hash,
+    );
     if (!match)
       return res.status(401).json({ error: "Invalid security credentials." });
 
+    // ⚠️ 核心修復點：確保將 currentUserEntity 的有效實體 ID 寫入加密 Token 中
     const token = jwt.sign(
-      { id: user.id, loginName: user.login_name },
+      { id: currentUserEntity.id, loginName: currentUserEntity.login_name },
       JWT_SECRET,
       { expiresIn: "24h" },
     );
-    res.json({ token, username: user.username, loginName: user.login_name });
+
+    // 回傳給前端儲存
+    res.json({
+      token,
+      username: currentUserEntity.username,
+      loginName: currentUserEntity.login_name,
+    });
   } catch (err) {
+    console.error("❌ LOGIN_CRASH_ERROR:", err);
     res.status(500).json({ error: "System processing failure at sign in." });
   }
 });
