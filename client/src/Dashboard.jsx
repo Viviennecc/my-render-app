@@ -89,36 +89,38 @@ const Dashboard = ({ userName: propUserName, onLogout }) => {
 
   // --- 核心：將新設定同步寫入雲端資料庫保存 ---
   // --- 核心：將新設定同步寫入雲端資料庫保存 (精準修復版) ---
+  // --- 核心：將新設定同步寫入雲端資料庫保存 (Resilient Catchment Model) ---
   const handleFinalSave = async () => {
     let finalBg;
     if (tempImageBase64) {
-      // 確保將純 Base64 內容發送給後端儲存
       finalBg = { type: "image", value: tempImageBase64 };
     } else {
       finalBg = { type: "color", value: tempBgColor };
     }
 
     try {
-      // 1. 發送至 Render 後端 API 永久儲存至 Postgres
+      // 1. Fire asynchronous data array package down to the network pipeline
       const res = await api.saveSettings({
         background_type: finalBg.type,
-        background_value: finalBg.value, // 純淨的字串數據
+        background_value: finalBg.value,
         text_color: tempTextColor,
-        text_size: tempTextSize,
+        text_size: parseInt(tempTextSize) || 16,
       });
 
-      if (res && res.error) {
-        alert("雲端儲存失敗: " + res.error);
+      // Secure type configuration processing check
+      if (res && (res.error || res.status > 300)) {
+        alert("雲端儲存未完成: " + (res.error || "HTTP Status " + res.status));
         return;
       }
 
-      // 2. 後端確認成功後，再更新前端當前狀態以呈現效果
+      // 2. Commit variables natively to state once the cloud successfully acknowledges execution
       setBackground(finalBg);
       setTextColor(tempTextColor);
-      setTextSize(tempTextSize);
+      setTextSize(parseInt(tempTextSize) || 16);
       setShowAppearance(false);
+      setTempImageBase64(""); // Wipe execution workspace cash
     } catch (err) {
-      console.error("同步至雲端資料庫失敗:", err);
+      console.error("UI_SAFE_SAVE_INTERCEPT_CRASH:", err);
       alert("外觀設定儲存失敗，請檢查網路連線");
     }
   };

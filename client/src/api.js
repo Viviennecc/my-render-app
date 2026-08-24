@@ -77,7 +77,20 @@ export const api = {
     fetchWithAuth("/settings", {
       method: "POST",
       body: JSON.stringify(body),
-    }).then((res) => res.json()),
+    }).then(async (res) => {
+      // If it is already intercepted or transformed by fetchWithAuth, return it directly
+      if (res.error) return res;
+
+      // Securely parse the stream stream safely
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return text.includes("success")
+          ? { success: true }
+          : { error: "Payload streaming sync failed." };
+      }
+    }),
 
   // Library Asset Engine
   getBooks: () =>
