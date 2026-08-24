@@ -11,7 +11,9 @@ app.use(cors());
 
 // ⚠️ 請確保並補齊這兩行配置，同時允許 JSON 與 URL 編碼接收大數據（最高 50MB）
 app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(
+  express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }),
+);
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-super-secret-key";
 
@@ -202,7 +204,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
 });
 
 // ==========================================
-// 🎨 APPEARANCE COMPONENT CLOUD STATE
+// 🎨 APPEARANCE COMPONENT CLOUD STATE (精準修復版)
 // ==========================================
 app.get("/api/settings", authenticateToken, async (req, res) => {
   try {
@@ -210,7 +212,8 @@ app.get("/api/settings", authenticateToken, async (req, res) => {
       "SELECT * FROM user_settings WHERE user_id = $1",
       [req.user.id],
     );
-    res.json(settings.rows[0] || {}); // ⚠️ 修正這裡的陣列索引
+    // 確保回傳正確的物件格式
+    res.json(settings.rows[0] || {});
   } catch (err) {
     res.status(500).json({ error: "Failed preference configuration parsing." });
   }
@@ -219,15 +222,26 @@ app.get("/api/settings", authenticateToken, async (req, res) => {
 app.post("/api/settings", authenticateToken, async (req, res) => {
   const { background_type, background_value, text_color, text_size } = req.body;
   try {
+    // 萬能 Upsert 指令：存在就更新，不存在就插入
     await db.query(
       `INSERT INTO user_settings (user_id, background_type, background_value, text_color, text_size)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (user_id) DO UPDATE 
-       SET background_type = $2, background_value = $3, text_color = $4, text_size = $5`,
-      [req.user.id, background_type, background_value, text_color, text_size],
+       SET background_type = EXCLUDED.background_type, 
+           background_value = EXCLUDED.background_value, 
+           text_color = EXCLUDED.text_color, 
+           text_size = EXCLUDED.text_size`,
+      [
+        req.user.id,
+        background_type,
+        background_value,
+        text_color,
+        parseInt(text_size) || 16,
+      ],
     );
     res.json({ success: true });
   } catch (err) {
+    console.error("❌ CLOUD_SETTINGS_SAVE_ERROR:", err); // 如果失敗，會在 Render 日誌印出具體原因
     res.status(500).json({ error: "Persistent storage execution failure." });
   }
 });
