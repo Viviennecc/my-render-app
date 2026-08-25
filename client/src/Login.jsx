@@ -151,7 +151,7 @@ const Login = ({ onLoginSuccess }) => {
     }
   };
 
-  // --- 核心：處理忘記密碼與 2FA 雙重核驗變更密碼 ---
+  // --- 核心：處理忘記密碼與 2FA 雙重核驗變更密碼 (含 Login Name, Display Name, DOB, Email) ---
   const handleForgotPassword = async () => {
     const loginNameInput = prompt("Please enter your Login Name:");
     if (!loginNameInput) return;
@@ -161,6 +161,11 @@ const Login = ({ onLoginSuccess }) => {
       return;
     }
 
+    const usernameInput = prompt(
+      "Security Check: Verify Display Name (Username):",
+    );
+    if (!usernameInput) return;
+
     const dobCheck = prompt(
       "Security Check: Verify Date of Birth (YYYY-MM-DD):",
     );
@@ -169,6 +174,7 @@ const Login = ({ onLoginSuccess }) => {
     try {
       const checkRes = await api.forgotVerify({
         loginName: loginNameInput,
+        username: usernameInput,
         dateOfBirth: dobCheck,
         email: emailcheck,
       });
@@ -224,16 +230,16 @@ const Login = ({ onLoginSuccess }) => {
       return;
     }
 
-    // 3. Check Password Complexity
+    // 2. Check Password Complexity
     if (!validatePassword(regFormData.password)) {
       alert("Password does not meet security requirements.");
       return;
     }
 
-    // 4. Check Email Domain
+    // 3. Check Email Domain
     if (!validateEmail(regFormData.email)) {
       alert(
-        "Invalid Email. Please use @iCloud, @gmail, @yahoo, @hotmail, or @outlook.",
+        "Invalid Email. Please use @iCloud, @gmail, @hotmail, @outlook, or @yahoo.",
       );
       return;
     }
@@ -361,7 +367,6 @@ const Login = ({ onLoginSuccess }) => {
         </form>
       </div>
 
-      {/* ⚠️ 嚴格遵循指示：以下整個區塊百分之百完全複製保留，不做任何修改 */}
       {showRegister && (
         <div className="modal-overlay">
           <div className="modal-content">
