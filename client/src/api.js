@@ -55,6 +55,7 @@ export const api = {
       body: JSON.stringify(body),
     }).then((res) => res.json()),
 
+  // Updated to support forgotVerify payload containing loginName, username, dateOfBirth, and email
   forgotVerify: (body) =>
     fetch(`${API_BASE}/auth/forgot-verify`, {
       method: "POST",
@@ -122,7 +123,7 @@ export const api = {
       body: JSON.stringify(body),
     }).then((res) => res.json()),
 
-  // Cryptographic Message Store
+  // Cryptographic Message Store (Aligned with secure inbox isolation)
   getMessages: () =>
     fetchWithAuth("/messages").then((res) => (res.ok ? res.json() : res)),
 
@@ -131,4 +132,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }).then((res) => res.json()),
+
+  deleteMessage: (id) =>
+    fetchWithAuth(`/messages/${id}`, { method: "DELETE" }).then((res) =>
+      res.json(),
+    ),
 };
