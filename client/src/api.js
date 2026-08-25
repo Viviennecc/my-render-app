@@ -75,10 +75,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }).then(async (res) => {
-      // If it is already intercepted or transformed by fetchWithAuth, return it directly
       if (res.error) return res;
 
-      // Securely parse the stream stream safely
       const text = await res.text();
       try {
         return JSON.parse(text);
