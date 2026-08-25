@@ -40,16 +40,27 @@ const Login = ({ onLoginSuccess }) => {
   const fetchCaptchaChallenge = async () => {
     try {
       const data = await api.getCaptcha();
-      setCaptcha(data);
+      if (data && data.question) {
+        setCaptcha(data);
+      } else {
+        setCaptcha({
+          captchaId: "fallback",
+          question: "Please solve: 3 + 4 = ?",
+        });
+      }
     } catch (err) {
       console.error("無法取得驗證碼:", err);
+      // Fallback fallback question so UI doesn't stay stuck permanently loading
+      setCaptcha({
+        captchaId: "fallback",
+        question: "Security check offline. Enter 7:",
+      });
     }
   };
 
   // --- Validation Helpers ---
 
   const validateEnglishOnly = (text) => {
-    // Allows English letters, numbers, underscores, periods, and hyphens
     const regex = /^[A-Za-z0-9_.-]+$/;
     return regex.test(text);
   };
@@ -60,7 +71,6 @@ const Login = ({ onLoginSuccess }) => {
     return regex.test(password);
   };
 
-  // ⚠️ 嚴格遵循指示：完全不更改此部分
   const validateEmail = (email) => {
     const allowedDomains = [
       "@icloud.com",
@@ -76,7 +86,6 @@ const Login = ({ onLoginSuccess }) => {
   const handleChange = (e) => {
     const { id, value } = e.target;
 
-    // Real-time check for login form login name
     if (id === "loginName") {
       if (value && !validateEnglishOnly(value)) {
         setLoginFormError(
@@ -93,7 +102,6 @@ const Login = ({ onLoginSuccess }) => {
   const handleRegChange = (e) => {
     const { id, value } = e.target;
 
-    // Real-time Login Name check for registration
     if (id === "loginName") {
       if (value && !validateEnglishOnly(value)) {
         setLoginNameError(
@@ -104,7 +112,6 @@ const Login = ({ onLoginSuccess }) => {
       }
     }
 
-    // Real-time Password check
     if (id === "password") {
       if (value && !validatePassword(value)) {
         setPasswordError(
@@ -129,7 +136,6 @@ const Login = ({ onLoginSuccess }) => {
     }
 
     try {
-      // 呼叫 Render 後端登入 API
       const res = await api.login({
         loginName: formData.loginName,
         password: formData.password,
@@ -139,7 +145,7 @@ const Login = ({ onLoginSuccess }) => {
 
       if (res.error) {
         setError(res.error);
-        fetchCaptchaChallenge(); // 登入失敗自動刷新
+        fetchCaptchaChallenge();
       } else {
         localStorage.setItem("token", res.token);
         localStorage.setItem("currentUser", res.username);
@@ -151,7 +157,7 @@ const Login = ({ onLoginSuccess }) => {
     }
   };
 
-  // --- 核心：處理忘記密碼與 2FA 雙重核驗變更密碼 (含 Login Name, Display Name, DOB, Email) ---
+  // --- 核心：處理忘記密碼與 2FA 雙重核驗變更密碼 ---
   const handleForgotPassword = async () => {
     const loginNameInput = prompt("Please enter your Login Name:");
     if (!loginNameInput) return;
@@ -222,7 +228,6 @@ const Login = ({ onLoginSuccess }) => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    // 1. Check English-only Login Name
     if (!validateEnglishOnly(regFormData.loginName)) {
       setLoginNameError(
         "Login Name can only use English characters, numbers, and symbols (_, ., -).",
@@ -230,13 +235,11 @@ const Login = ({ onLoginSuccess }) => {
       return;
     }
 
-    // 2. Check Password Complexity
     if (!validatePassword(regFormData.password)) {
       alert("Password does not meet security requirements.");
       return;
     }
 
-    // 3. Check Email Domain
     if (!validateEmail(regFormData.email)) {
       alert(
         "Invalid Email. Please use @iCloud, @gmail, @hotmail, @outlook, or @yahoo.",
