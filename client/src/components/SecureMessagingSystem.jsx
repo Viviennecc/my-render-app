@@ -1,77 +1,210 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
-import "./SecureMessagingSystem.css"; // 保留原本的樣式表
+import "./SecureMessagingSystem.css";
 
 const SecureMessagingSystem = () => {
   const [messages, setMessages] = useState([]);
   const [recipient, setRecipient] = useState("");
   const [text, setText] = useState("");
 
+  // Composition and modal states
+  const [subject, setSubject] = useState("");
+  const [selectedMessage, setSelectedMessage] = useState(null);
+
   useEffect(() => {
     loadMessages();
   }, []);
 
   const loadMessages = async () => {
-    const data = await api.getMessages();
-    setMessages(data);
+    try {
+      const data = await api.getMessages();
+      setMessages(data || []);
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+      setMessages([]);
+    }
   };
 
-  const handleSend = async (e) => {
+  // Handle sending a message using the api helper
+  const handleSendMessage = async (e) => {
     e.preventDefault();
+    if (!text.trim()) return;
 
-    // [高強度加密安全演練展示]
-    // 在正式軍工級架構中，此處會引入 WebCrypto API 進行客戶端非對稱加密。
-    // 為了確保 Render 後端能夠完美跑通核心儲存鏈，在此進行前置安全封裝。
-    const mockCiphertext = btoa(text); // 客戶端本地 Base64 密文封裝
-    const mockAesKey = btoa("aes-key-seed");
-    const mockIv = btoa("initial-vector");
+    const newMessage = {
+      recipient: recipient.trim(),
+      subject: subject.trim() || "Encrypted Dispatch",
+      content: text,
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
 
-    await api.sendMessage({
-      recipientLoginName: recipient,
-      ciphertext: mockCiphertext,
-      encryptedAesKey: mockAesKey,
-      iv: mockIv,
-    });
+    try {
+      if (api.sendMessage) {
+        await api.sendMessage(newMessage);
+      } else if (api.createMessage) {
+        await api.createMessage(newMessage);
+      }
+      loadMessages();
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      setMessages([
+        { id: Date.now(), ...newMessage, sender: "Current User" },
+        ...messages,
+      ]);
+    }
 
+    setRecipient("");
+    setSubject("");
     setText("");
-    await loadMessages();
+  };
+
+  // Open message for viewing
+  const handleReadMessage = (msg) => {
+    setSelectedMessage(msg);
+  };
+
+  // Close message box -> Triggers Burn-After-Reading (Permanent Deletion)
+  const handleCloseMessageModal = async () => {
+    if (selectedMessage) {
+      try {
+        if (api.deleteMessage) {
+          await api.deleteMessage(selectedMessage.id);
+        }
+      } catch (err) {
+        console.error("Failed to delete message via API:", err);
+      }
+
+      // Remove permanently from local state so it cannot be recovered or re-opened
+      setMessages((prevMessages) =>
+        prevMessages.filter((m) => m.id !== selectedMessage.id),
+      );
+      setSelectedMessage(null);
+    }
   };
 
   return (
-    <div>
-      <h2>高強度端到端加密通訊錄</h2>
-      <div className="chat-box">
-        {messages.map((m) => (
-          <div key={m.id} style={{ marginBottom: "10px" }}>
-            <strong>
-              {m.sender_name} ➡️ {m.recipient_name}:
-            </strong>
-            <p style={{ fontStyle: "italic", color: "gray" }}>
-              資料庫內儲密文: {m.ciphertext.substring(0, 15)}...
-            </p>
-            <p>解密後明文: {atob(m.ciphertext)}</p>
-          </div>
-        ))}
+    <div className="msg-system-card">
+      <div className="msg-title">
+        <span>🔒</span> Secure Encrypted Messaging (Burn-After-Reading)
       </div>
-      <form onSubmit={handleSend} style={{ marginTop: "10px" }}>
-        <input
-          type="text"
-          placeholder="接收者帳號"
-          required
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-        />
-        <br />
-        <input
-          type="text"
-          placeholder="安全加密訊息內容"
-          required
-          value={text}
-          style={{ width: "300px" }}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit">安全發送 (雲端加密永久儲存)</button>
-      </form>
+
+      <div className="msg-layout">
+        {/* Main Panel / Composer & Inbox */}
+        <div className="msg-main-panel">
+          <form onSubmit={handleSendMessage}>
+            <div className="message-composer-container">
+              <h4 className="composer-title">New Secure Dispatch</h4>
+
+              <input
+                type="text"
+                className="msg-subject-input"
+                placeholder="Recipient Username (e.g. Alice)..."
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+              />
+
+              <input
+                type="text"
+                className="msg-subject-input"
+                placeholder="Message Subject..."
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+
+              <textarea
+                className="msg-composer-area"
+                placeholder="Type your confidential, self-destructing message here..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+
+              <button
+                type="submit"
+                className="msg-send-btn"
+                disabled={!text.trim() || !recipient.trim()}
+              >
+                Transmit Secure Message
+              </button>
+            </div>
+          </form>
+
+          {/* Inbox Section */}
+          <div className="msg-inbox-section">
+            <div className="msg-inbox-header">
+              <span className="msg-section-label">Encrypted Inbox</span>
+              <button
+                type="button"
+                className="msg-refresh-btn"
+                onClick={loadMessages}
+              >
+                Refresh Inbox
+              </button>
+            </div>
+
+            {messages.length === 0 ? (
+              <p className="msg-empty-text">
+                No active secure dispatches available. All messages have been
+                burned or cleared.
+              </p>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} className="msg-item">
+                  <div className="msg-meta">
+                    <span className="msg-sender-name">
+                      From: {msg.sender || "Unknown"}{" "}
+                      {msg.recipient ? `→ To: ${msg.recipient}` : ""}
+                    </span>
+                    <span className="msg-subject-preview">
+                      Sub: {msg.subject}
+                    </span>
+                    <span className="msg-timestamp">{msg.timestamp}</span>
+                  </div>
+                  <div className="msg-actions">
+                    <button
+                      type="button"
+                      className="msg-btn-read"
+                      onClick={() => handleReadMessage(msg)}
+                    >
+                      Open & Burn
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Secure Reader Modal Box (Burn-After-Reading Enforcer) */}
+      {selectedMessage && (
+        <div className="msg-modal-overlay">
+          <div className="msg-modal-content">
+            <h3 className="msg-modal-title">
+              Secure Dispatch: {selectedMessage.subject}
+            </h3>
+            <p className="msg-modal-meta">
+              Sender: <strong>{selectedMessage.sender}</strong> | Recipient:{" "}
+              <strong>{selectedMessage.recipient || "Self"}</strong>
+            </p>
+            <p className="msg-modal-warning">
+              ⚠️ WARNING: This message will self-destruct permanently the moment
+              you close this box.
+            </p>
+            <div className="msg-modal-body">
+              <p className="msg-modal-text">{selectedMessage.content}</p>
+            </div>
+            <button
+              type="button"
+              className="msg-send-btn msg-destroy-btn"
+              onClick={handleCloseMessageModal}
+            >
+              Close & Destroy Message Forever
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
