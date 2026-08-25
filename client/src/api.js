@@ -1,7 +1,4 @@
-const API_BASE =
-  window.location.hostname === "localhost"
-    ? "http://localhost:5000/api"
-    : "/api";
+const API_BASE = "https://my-render-app-backend.onrender.com/api";
 
 const fetchWithAuth = async (url, options = {}) => {
   const token = localStorage.getItem("token");
@@ -55,7 +52,6 @@ export const api = {
       body: JSON.stringify(body),
     }).then((res) => res.json()),
 
-  // Updated to support forgotVerify payload containing loginName, username, dateOfBirth, and email
   forgotVerify: (body) =>
     fetch(`${API_BASE}/auth/forgot-verify`, {
       method: "POST",
