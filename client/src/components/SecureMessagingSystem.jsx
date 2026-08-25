@@ -18,6 +18,8 @@ const SecureMessagingSystem = () => {
   const loadMessages = async () => {
     try {
       const data = await api.getMessages();
+      // Only load messages intended for the current viewing user/inbox if filtered by backend,
+      // or set fetched messages directly.
       setMessages(data || []);
     } catch (err) {
       console.error("Failed to load messages:", err);
@@ -46,13 +48,12 @@ const SecureMessagingSystem = () => {
       } else if (api.createMessage) {
         await api.createMessage(newMessage);
       }
+
+      // Do NOT optimistically push sent messages to User A's local inbox state.
+      // This ensures User A (sender) cannot see the sent message in their own inbox view.
       loadMessages();
     } catch (err) {
       console.error("Failed to send message:", err);
-      setMessages([
-        { id: Date.now(), ...newMessage, sender: "Current User" },
-        ...messages,
-      ]);
     }
 
     setRecipient("");
